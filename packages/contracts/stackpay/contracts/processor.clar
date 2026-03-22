@@ -83,6 +83,14 @@
   )
 )
 
+(define-private (valid-recipient (recipient principal))
+  (and
+    (not (is-eq recipient 'SP000000000000000000002Q6VF78))
+    (not (is-eq recipient 'ST000000000000000000002AMW42H))
+    true
+  )
+)
+
 (define-public (process-stx-payment
     (invoice-id (string-ascii 85))
     (amount uint)
@@ -135,18 +143,74 @@
   )
 )
 
-(define-public (withdraw-stx (amount uint))
+(define-public (withdraw-stx-to
+    (amount uint)
+    (recipient principal)
+  )
   (let ((merchant tx-sender))
     (asserts! (> amount u0) ERR_INVALID_AMOUNT)
+    (asserts! (valid-recipient recipient) ERR_INVALID_INPUT)
     (try! (debit-balance merchant CURRENCY_STX amount))
     (unwrap!
       (as-contract? ((with-stx amount))
-        (unwrap! (stx-transfer? amount current-contract merchant) ERR_PAYMENT_FAILED)
+        (unwrap! (stx-transfer? amount current-contract recipient) ERR_PAYMENT_FAILED)
         true
       )
       ERR_ASSET_GUARD
     )
-    (ok { withdrawn: amount })
+    (print {
+      event: "settlement-completed",
+      merchant: merchant,
+      recipient: recipient,
+      currency: CURRENCY_STX,
+      amount: amount,
+    })
+    (ok {
+      withdrawn: amount,
+      recipient: recipient,
+    })
+  )
+)
+
+(define-public (withdraw-stx (amount uint))
+  (withdraw-stx-to amount tx-sender)
+)
+
+(define-public (withdraw-token-to
+    (currency (string-ascii 10))
+    (amount uint)
+    (token <sip-010-trait>)
+    (recipient principal)
+  )
+  (let (
+      (merchant tx-sender)
+      (expected-token (unwrap! (supported-token-contract currency) ERR_INVALID_TOKEN))
+    )
+    (asserts! (> amount u0) ERR_INVALID_AMOUNT)
+    (asserts! (valid-recipient recipient) ERR_INVALID_INPUT)
+    (asserts! (is-eq expected-token (contract-of token)) ERR_INVALID_TOKEN)
+    (try! (debit-balance merchant currency amount))
+    (unwrap!
+      (as-contract? ((with-ft expected-token "*" amount))
+        (unwrap!
+          (contract-call? token transfer amount current-contract recipient none)
+          ERR_PAYMENT_FAILED
+        )
+        true
+      )
+      ERR_ASSET_GUARD
+    )
+    (print {
+      event: "settlement-completed",
+      merchant: merchant,
+      recipient: recipient,
+      currency: currency,
+      amount: amount,
+    })
+    (ok {
+      withdrawn: amount,
+      recipient: recipient,
+    })
   )
 )
 
@@ -155,25 +219,7 @@
     (amount uint)
     (token <sip-010-trait>)
   )
-  (let (
-      (merchant tx-sender)
-      (expected-token (unwrap! (supported-token-contract currency) ERR_INVALID_TOKEN))
-    )
-    (asserts! (> amount u0) ERR_INVALID_AMOUNT)
-    (asserts! (is-eq expected-token (contract-of token)) ERR_INVALID_TOKEN)
-    (try! (debit-balance merchant currency amount))
-    (unwrap!
-      (as-contract? ((with-ft expected-token "*" amount))
-        (unwrap!
-          (contract-call? token transfer amount current-contract merchant none)
-          ERR_PAYMENT_FAILED
-        )
-        true
-      )
-      ERR_ASSET_GUARD
-    )
-    (ok { withdrawn: amount })
-  )
+  (withdraw-token-to currency amount token tx-sender)
 )
 
 (define-read-only (get-balance

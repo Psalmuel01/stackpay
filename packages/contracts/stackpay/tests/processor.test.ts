@@ -79,7 +79,7 @@ describe("processor", () => {
     expect(balance.result).toBeSome(Cl.tuple({ amount: Cl.uint(1000) }));
   });
 
-  it("withdraws the full merchant STX balance", () => {
+  it("withdraws the full merchant STX balance to a chosen settlement wallet", () => {
     const setup = simnet.mineBlock([
       tx.callPublicFn("architecture", "set-processor", [Cl.principal(processorPrincipal)], deployer),
       tx.callPublicFn(
@@ -109,13 +109,14 @@ describe("processor", () => {
 
     const withdrawn = simnet.callPublicFn(
       "processor",
-      "withdraw-stx",
-      [uintCV(1000)],
+      "withdraw-stx-to",
+      [uintCV(1000), Cl.principal(recipient)],
       merchant
     );
     expect(withdrawn.result).toBeOk(
       Cl.tuple({
         withdrawn: Cl.uint(1000),
+        recipient: Cl.principal(recipient),
       })
     );
 

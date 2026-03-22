@@ -1,11 +1,16 @@
 import { stacksNetworks } from "@stackpay/config";
+import { cvToHex, cvToValue, hexToCV, principalCV, stringAsciiCV } from "@stacks/transactions";
 
 function getStacksApiUrl() {
   const network = process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
   return process.env.STACKPAY_STACKS_API_URL ?? stacksNetworks[network]?.apiUrl ?? stacksNetworks.testnet.apiUrl;
 }
 
-const tokenContracts = {
+function getProcessorContractId() {
+  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "";
+}
+
+export const tokenContracts = {
   sBTC:
     process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ??
     "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token",
@@ -18,6 +23,12 @@ export type WalletBalances = {
   STX: number | null;
   sBTC: number | null;
   USDCx: number | null;
+};
+
+export type ProcessorBalances = {
+  STX: number;
+  sBTC: number;
+  USDCx: number;
 };
 
 export type TxSyncResult =
@@ -36,6 +47,15 @@ export type TxSyncResult =
       reason: string | null;
       confirmedAt: number | null;
     };
+
+function parseContractId(contractId: string) {
+  const [contractAddress, contractName] = contractId.split(".");
+  if (!contractAddress || !contractName) {
+    throw new Error(`Invalid contract id: ${contractId}`);
+  }
+
+  return { contractAddress, contractName };
+}
 
 function parseOkAsciiResult(repr: string | null) {
   if (!repr) {
@@ -87,7 +107,63 @@ export async function getWalletBalances(address: string): Promise<WalletBalances
   };
 }
 
-export async function syncInvoiceCreationTx(txId: string): Promise<TxSyncResult> {
+async function callProcessorReadOnly(functionName: string, args: string[]) {
+  const contractId = getProcessorContractId();
+  if (!contractId) {
+    throw new Error("NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID is not configured.");
+  }
+
+  const { contractAddress, contractName } = parseContractId(contractId);
+  const response = await fetch(
+    `${getStacksApiUrl()}/v2/contracts/call-read/${contractAddress}/${contractName}/${functionName}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        sender: contractAddress,
+        arguments: args,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to call read-only function ${functionName}.`);
+  }
+
+  return response.json();
+}
+
+export async function getProcessorBalances(address: string): Promise<ProcessorBalances> {
+  const currencies = ["STX", "sBTC", "USDCx"] as const;
+  const results = await Promise.all(
+    currencies.map(async (currency) => {
+      const payload = await callProcessorReadOnly("get-balance", [
+        cvToHex(principalCV(address)),
+        cvToHex(stringAsciiCV(currency)),
+      ]);
+
+      if (!payload.okay) {
+        return [currency, 0] as const;
+      }
+
+      const cv = hexToCV(payload.result);
+      const value = cvToValue(cv) as { amount?: string | number | bigint } | null;
+      const amount = atomicToAmount(
+        value?.amount !== undefined && value?.amount !== null ? String(value.amount) : 0,
+        currency === "sBTC" ? 8 : 6
+      ) ?? 0;
+
+      return [currency, amount] as const;
+    })
+  );
+
+  return Object.fromEntries(results) as ProcessorBalances;
+}
+
+export async function syncTransaction(txId: string): Promise<TxSyncResult> {
   const response = await fetch(`${getStacksApiUrl()}/extended/v1/tx/${txId}`, {
     cache: "no-store",
   });
@@ -129,4 +205,8 @@ export async function syncInvoiceCreationTx(txId: string): Promise<TxSyncResult>
     reason: payload.tx_status ?? null,
     confirmedAt,
   };
+}
+
+export async function syncInvoiceCreationTx(txId: string): Promise<TxSyncResult> {
+  return syncTransaction(txId);
 }

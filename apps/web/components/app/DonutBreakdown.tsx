@@ -5,10 +5,8 @@ type Slice = {
 };
 
 export default function DonutBreakdown({ slices }: { slices: Slice[] }) {
-  const total = Math.max(
-    slices.reduce((sum, slice) => sum + slice.value, 0),
-    1
-  );
+  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  const safeTotal = total > 0 ? total : 1;
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
@@ -26,7 +24,7 @@ export default function DonutBreakdown({ slices }: { slices: Slice[] }) {
             fill="none"
           />
           {slices.map((slice) => {
-            const length = (slice.value / total) * circumference;
+            const length = (slice.value / safeTotal) * circumference;
             const dashOffset = circumference - offset;
             offset += length;
 

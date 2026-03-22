@@ -81,7 +81,9 @@ export type StackPayContractIntent = {
 function isPaymentFunction(functionName: string) {
   return (
     functionName === "process-stx-payment" ||
-    functionName === "process-sip-010-payment"
+    functionName === "process-sip-010-payment" ||
+    functionName === "withdraw-stx-to" ||
+    functionName === "withdraw-token-to"
   );
 }
 

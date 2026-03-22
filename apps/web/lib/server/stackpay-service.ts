@@ -3,9 +3,12 @@ import {
   buildCreateInvoiceIntent,
   buildCreateMultipayLinkIntent,
   buildCreateUniversalQrIntent,
+  buildWithdrawStxIntent,
+  buildWithdrawTokenIntent,
   type ContractIntent,
 } from "@/lib/server/stackpay-contracts";
 import { makeEntityKey, makeSlugWithSuffix, slugify } from "@/lib/server/ids";
+import { getProcessorBalances, tokenContracts } from "@/lib/server/stacks-api";
 import {
   insertRow,
   patchRows,
@@ -125,6 +128,22 @@ type ChainhookInvoicePaidInput = {
   amount?: number | null;
   currency?: Currency | null;
   payload: Record<string, unknown>;
+};
+
+type PrepareSettlementInput = {
+  walletAddress: string;
+  currency: Currency;
+  amount: number;
+  destination?: string | null;
+};
+
+type ConfirmSettlementInput = {
+  walletAddress: string;
+  txId: string;
+  currency: Currency;
+  amount: number;
+  destination: string;
+  confirmedAt?: number | null;
 };
 
 type DashboardActivityItem = {
@@ -276,6 +295,38 @@ export async function getMerchantProfileByWallet(walletAddress: string) {
   return selectSingle<Row>("merchant_profiles", {
     wallet_address: `eq.${ensureWalletAddress(walletAddress)}`,
   });
+}
+
+export async function getSettlementDashboard(walletAddress: string) {
+  const merchant = await getMerchantProfileByWallet(walletAddress);
+  const processorBalances = await getProcessorBalances(walletAddress);
+
+  if (!merchant) {
+    return {
+      merchant: null,
+      processorBalances,
+      settlementRuns: [],
+    };
+  }
+
+  const settlementRuns = (await selectRows("settlement_runs", {
+    select: "*",
+    merchant_id: `eq.${merchant.id as string}`,
+    order: "created_at.desc",
+    limit: 20,
+  })) as Row[];
+
+  return {
+    merchant: {
+      company_name: merchant.company_name ?? "",
+      display_name: merchant.display_name ?? "",
+      email: merchant.email ?? "",
+      slug: merchant.slug ?? "",
+      settlement_wallet: merchant.settlement_wallet ?? walletAddress,
+    },
+    processorBalances,
+    settlementRuns,
+  };
 }
 
 export async function upsertMerchantProfile(input: MerchantProfileInput) {
@@ -540,6 +591,95 @@ export async function confirmInvoiceCreation(input: ConfirmInvoiceInput) {
   );
 
   return invoice;
+}
+
+export async function prepareSettlementWithdrawal(input: PrepareSettlementInput) {
+  const walletAddress = ensureWalletAddress(input.walletAddress);
+  const merchant = await getMerchantProfileByWallet(walletAddress);
+  if (!merchant) {
+    throw new Error("Complete your merchant profile before settling funds.");
+  }
+
+  ensurePositiveAmount(input.amount, "amount");
+  const destination = input.destination?.trim() || String(merchant.settlement_wallet ?? walletAddress);
+  if (!destination) {
+    throw new Error("A settlement destination is required.");
+  }
+
+  const processorBalances = await getProcessorBalances(walletAddress);
+  const availableBalance = processorBalances[input.currency];
+  if (input.amount > availableBalance) {
+    throw new Error(`Insufficient ${input.currency} balance in the processor.`);
+  }
+
+  const contractIntent =
+    input.currency === "STX"
+      ? buildWithdrawStxIntent({
+          amount: input.amount,
+          recipientAddress: destination,
+        })
+      : buildWithdrawTokenIntent({
+          currency: input.currency,
+          amount: input.amount,
+          tokenContract: tokenContracts[input.currency],
+          recipientAddress: destination,
+        });
+
+  return {
+    merchant,
+    contractIntent,
+    settlement: {
+      currency: input.currency,
+      amount: input.amount,
+      destination,
+    },
+  };
+}
+
+export async function confirmSettlementWithdrawal(input: ConfirmSettlementInput) {
+  const walletAddress = ensureWalletAddress(input.walletAddress);
+  const merchant = await getMerchantProfileByWallet(walletAddress);
+  if (!merchant) {
+    throw new Error("Merchant profile not found.");
+  }
+
+  ensurePositiveAmount(input.amount, "amount");
+
+  const executedAt =
+    typeof input.confirmedAt === "number" && input.confirmedAt > 0
+      ? new Date(input.confirmedAt * 1000).toISOString()
+      : new Date().toISOString();
+
+  const settlementRun = await upsertRow(
+    "settlement_runs",
+    {
+      merchant_id: merchant.id,
+      tx_id: input.txId,
+      currency: input.currency,
+      amount: input.amount,
+      destination: input.destination,
+      status: "completed",
+      executed_at: executedAt,
+      metadata: {},
+    },
+    "tx_id"
+  );
+
+  await recordActivity(
+    String(merchant.id),
+    "settlement_run",
+    String(settlementRun.id),
+    "settlement.completed",
+    {
+      txId: input.txId,
+      currency: input.currency,
+      amount: input.amount,
+      destination: input.destination,
+    },
+    input.txId
+  );
+
+  return settlementRun;
 }
 
 export async function listPaymentLinksForWallet(walletAddress: string) {

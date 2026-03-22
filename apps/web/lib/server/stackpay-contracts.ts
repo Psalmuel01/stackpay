@@ -11,12 +11,14 @@ type ContractArg =
 
 export type ContractIntent = {
   contractId: string;
-  contractName: "architecture";
+  contractName: "architecture" | "processor";
   functionName:
     | "create-invoice"
     | "create-multipay-link"
     | "create-universal-qr-link"
-    | "create-public-invoice-from-link";
+    | "create-public-invoice-from-link"
+    | "withdraw-stx-to"
+    | "withdraw-token-to";
   network: string;
   arguments: ContractArg[];
   notes: string[];
@@ -24,6 +26,10 @@ export type ContractIntent = {
 
 function getArchitectureContractId() {
   return process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "ST000000000000000000002AMW42H.architecture";
+}
+
+function getProcessorContractId() {
+  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "ST000000000000000000002AMW42H.processor";
 }
 
 function getNetwork() {
@@ -172,5 +178,49 @@ export function buildCreatePublicInvoiceFromLinkIntent(input: {
       { type: "string-utf8", value: input.description },
     ],
     notes: ["Customer wallet submits this transaction to generate a fresh invoice from the public payment link."],
+  };
+}
+
+export function buildWithdrawStxIntent(input: {
+  amount: number;
+  recipientAddress: string;
+}): ContractIntent {
+  return {
+    contractId: getProcessorContractId(),
+    contractName: "processor",
+    functionName: "withdraw-stx-to",
+    network: getNetwork(),
+    arguments: [
+      { type: "uint", value: toAtomicAmount(input.amount, "STX") },
+      { type: "principal", value: input.recipientAddress },
+    ],
+    notes: [
+      "Merchant wallet submits this transaction.",
+      "Processor contract transfers STX balance to the specified settlement destination.",
+    ],
+  };
+}
+
+export function buildWithdrawTokenIntent(input: {
+  currency: "sBTC" | "USDCx";
+  amount: number;
+  tokenContract: string;
+  recipientAddress: string;
+}): ContractIntent {
+  return {
+    contractId: getProcessorContractId(),
+    contractName: "processor",
+    functionName: "withdraw-token-to",
+    network: getNetwork(),
+    arguments: [
+      { type: "string-ascii", value: input.currency },
+      { type: "uint", value: toAtomicAmount(input.amount, input.currency) },
+      { type: "principal", value: input.tokenContract },
+      { type: "principal", value: input.recipientAddress },
+    ],
+    notes: [
+      "Merchant wallet submits this transaction.",
+      "Processor contract transfers the selected token balance to the specified settlement destination.",
+    ],
   };
 }
