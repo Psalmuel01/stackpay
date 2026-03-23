@@ -4,6 +4,7 @@ export const appNavigation = [
   { label: "Invoices", href: "/invoices" },
   { label: "QR Link", href: "/qr-link" },
   { label: "Profile", href: "/profile" },
+  { label: "Settlements", href: "/settlements" },
 ];
 
 export const mobileNavigation = [
@@ -12,13 +13,12 @@ export const mobileNavigation = [
   { label: "Invoices", href: "/invoices" },
   { label: "QR", href: "/qr-link" },
   { label: "Profile", href: "/profile" },
-  { label: "Settings", href: "/settings" },
+  { label: "Settle", href: "/settlements" },
 ];
 
 export const settingsNavigation = [
-  { label: "Subscriptions", href: "/subscriptions" },
-  { label: "Settlements", href: "/settlements" },
-  { label: "Developer", href: "/developer" },
+  // { label: "Subscriptions", href: "/subscriptions" },
+  // { label: "Developer", href: "/developer" },
 ];
 
 export const sitePrimaryActions = [
