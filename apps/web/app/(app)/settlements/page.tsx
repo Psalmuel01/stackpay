@@ -49,6 +49,21 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function with0x(value: string) {
+  return value.startsWith("0x") ? value : `0x${value}`;
+}
+
+function getTxExplorerUrl(txId: string) {
+  const normalized = with0x(txId);
+  const network = process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
+  const base =
+    network === "mainnet"
+      ? "https://explorer.hiro.so/txid"
+      : "https://explorer.hiro.so/txid";
+  const suffix = network === "mainnet" ? "" : "?chain=testnet";
+  return `${base}/${normalized}${suffix}`;
+}
+
 export default function SettlementsPage() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<SettlementDashboardResponse | null>(null);
@@ -268,7 +283,7 @@ export default function SettlementsPage() {
             ))}
           </div>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <div className="mt-6 grid gap-6 xl:grid-cols-[2fr_1fr]">
             <GlassCard className="border border-white/20">
               <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Settle funds</div>
               <div className="mt-2 text-xl font-semibold text-white">Withdraw to your destination wallet</div>
@@ -282,11 +297,10 @@ export default function SettlementsPage() {
                         key={item}
                         type="button"
                         onClick={() => setCurrency(item)}
-                        className={`rounded-full px-4 py-2 text-xs ${
-                          currency === item
+                        className={`rounded-full px-4 py-2 text-xs ${currency === item
                             ? "border border-white/20 bg-white text-black"
                             : "border border-white/10 bg-white/5 text-white/70"
-                        }`}
+                          }`}
                       >
                         {item}
                       </button>
@@ -321,10 +335,6 @@ export default function SettlementsPage() {
                   />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                  Funds are currently held in the processor contract. This withdrawal moves the selected asset to your chosen settlement destination.
-                </div>
-
                 <button
                   onClick={() => void submitSettlement()}
                   disabled={submitting}
@@ -355,6 +365,10 @@ export default function SettlementsPage() {
                   {dashboard?.merchant?.company_name || dashboard?.merchant?.display_name || "Merchant"}
                 </div>
               </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                Funds are currently held in the processor contract. This withdrawal moves the selected asset to your chosen settlement destination.
+              </div>
             </GlassCard>
           </div>
 
@@ -366,21 +380,47 @@ export default function SettlementsPage() {
 
             {dashboard?.settlementRuns.length ? (
               <div className="space-y-3">
+                <div className="hidden rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[11px] uppercase tracking-[0.24em] text-white/35 md:grid md:grid-cols-[1.05fr_1.15fr_1fr_1fr_140px] md:items-center md:gap-4">
+                  <div>Amount</div>
+                  <div>Destination</div>
+                  <div>Executed</div>
+                  <div>Transaction</div>
+                  <div className="text-right">Status</div>
+                </div>
                 {dashboard.settlementRuns.map((run) => (
                   <div
                     key={run.id}
-                    className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 md:grid-cols-[1.2fr_1fr_160px]"
+                    className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 md:grid-cols-[1.05fr_1.15fr_1fr_1fr_140px] md:items-center"
                   >
                     <div>
-                      <div className="text-sm font-semibold text-white">
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Amount</div>
+                      <div className="mt-1 text-sm font-semibold text-white md:mt-0">
                         {formatCurrencyAmount(Number(run.amount), run.currency)}
                       </div>
-                      <div className="mt-1 text-sm text-white/55">{run.destination}</div>
-                      <div className="mt-2 text-xs text-white/35">tx {run.tx_id}</div>
                     </div>
 
-                    <div className="text-sm text-white/55">
-                      Executed {formatDateTime(run.executed_at)}
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Destination</div>
+                      <div className="mt-1 text-sm text-white/55 md:mt-0">{truncateAddress(run.destination)}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Executed</div>
+                      <div className="mt-1 text-sm text-white/55 md:mt-0">
+                        {formatDateTime(run.executed_at)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Transaction</div>
+                      <a
+                        href={getTxExplorerUrl(run.tx_id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex text-sm text-white/70 underline decoration-white/15 underline-offset-4 transition hover:text-white md:mt-0"
+                      >
+                        {truncateAddress(with0x(run.tx_id))}
+                      </a>
                     </div>
 
                     <div className="flex justify-start md:justify-end">

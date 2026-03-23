@@ -75,6 +75,38 @@ function atomicToAmount(value: string | number | null | undefined, decimals: num
   return Number(normalized) / 10 ** decimals;
 }
 
+function unwrapCvScalar(value: any): string | number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "object" && "value" in value) {
+    return unwrapCvScalar(value.value);
+  }
+
+  return null;
+}
+
+function extractBalanceAmount(value: any): string | number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  if ("amount" in value) {
+    return unwrapCvScalar(value.amount);
+  }
+
+  if ("value" in value && value.value && typeof value.value === "object" && "amount" in value.value) {
+    return unwrapCvScalar(value.value.amount);
+  }
+
+  return null;
+}
+
 function findTokenBalance(
   fungibleTokens: Record<string, { balance?: string | number }>,
   contractId: string,
@@ -150,11 +182,9 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
       }
 
       const cv = hexToCV(payload.result);
-      const value = cvToValue(cv) as { amount?: string | number | bigint } | null;
-      const amount = atomicToAmount(
-        value?.amount !== undefined && value?.amount !== null ? String(value.amount) : 0,
-        currency === "sBTC" ? 8 : 6
-      ) ?? 0;
+      const value = cvToValue(cv);
+      const rawAmount = extractBalanceAmount(value);
+      const amount = atomicToAmount(rawAmount ?? 0, currency === "sBTC" ? 8 : 6) ?? 0;
 
       return [currency, amount] as const;
     })
