@@ -267,7 +267,7 @@ export default function PublicPaymentLinkPage({
       <main className="flex min-h-screen items-center px-6 py-12">
         <div className="mx-auto w-full max-w-3xl">
           <GlassCard className="border border-white/20">
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="text-xs uppercase tracking-[0.35em] text-white/40">Loading checkout</div>
               <div className="h-10 w-64 rounded-2xl bg-white/10" />
               <div className="h-4 w-full max-w-xl rounded-full bg-white/10" />
