@@ -7,6 +7,7 @@ import Logo from "@/components/Logo";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import NotificationsButton from "@/components/app/NotificationsButton";
 import { appNavigation, settingsNavigation } from "@stackpay/ui";
+import { MoreVertical } from "lucide-react";
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -67,12 +68,12 @@ export default function AppHeader() {
                     : "hover:text-white"
                 }`}
               >
-                Settings
+                <MoreVertical size={14} className="" />
               </button>
               {open ? (
                 <div className="absolute right-0 top-[calc(100%+12px)] w-56 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                   <div className="mb-2 px-3 text-[11px] uppercase tracking-[0.24em] text-white/35">
-                    Merchant controls
+                    Coming soon
                   </div>
                   <div className="space-y-1">
                     {settingsNavigation.map((item) => {

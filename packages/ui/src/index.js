@@ -14,11 +14,13 @@ export const mobileNavigation = [
   { label: "QR", href: "/qr-link" },
   { label: "Profile", href: "/profile" },
   { label: "Settle", href: "/settlements" },
+  // { label: "Settings", href: "/settings" },
 ];
 
 export const settingsNavigation = [
-  // { label: "Subscriptions", href: "/subscriptions" },
-  // { label: "Developer", href: "/developer" },
+  { label: "Subscriptions", href: "/subscriptions" },
+  { label: "Developer", href: "/developer" },
+  // { label: "Explorer", href: "/explorer" },
 ];
 
 export const sitePrimaryActions = [
