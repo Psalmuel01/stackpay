@@ -264,3 +264,112 @@ Core API routes:
 - [`docs/stackpay-mvp-blueprint.md`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-mvp-blueprint.md)
 - [`docs/stackpay-supabase-mvp.md`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-supabase-mvp.md)
 - [`docs/stackpay-chainhook-invoice-paid.json`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-chainhook-invoice-paid.json)
+
+
+## Creating Invoices with StackPay
+
+### Objective
+
+This SOP outlines the steps to create and manage invoices using the StackPay Bitcoin payment gateway.
+
+### Key Steps
+
+ 
+
+**1. Connect Your Wallet** [0:42](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=42)
+
+![generated-image-at-00:00:42](https://loom.com/i/dd5e2d17d54e4bdfa80443ce5cd92de9?workflows_screenshot=true)
+
+- Log in to your StackPay dashboard.
+- Navigate to the wallet connection section.
+- Select your wallet and confirm the connection.
+
+ 
+
+**2. Set Up Your Profile** [1:03](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=63)
+
+![generated-image-at-00:01:03](https://loom.com/i/1b14e42006184f5086ea4348f45b78bc?workflows_screenshot=true)
+
+- Go to the profile settings.
+- Enter your business name (e.g., Samuel Ventures).
+- Set your display name (e.g., Sammy).
+- Provide your invoice email address.
+- Save your profile settings.
+
+ 
+
+**3. Create an Invoice** [1:33](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=93)
+
+![generated-image-at-00:01:33](https://loom.com/i/8baf1c50229d4988bf9c003350fa6662?workflows_screenshot=true)
+
+- Click on the 'Create Invoice' button.
+- Choose the type of payment (Standard or Multi-Pay).
+- For a Standard Invoice: 
+  - Enter the amount (e.g., 1 USDC).
+  - Specify the customer’s email (e.g., Matt.searchme.com).
+  - Set an expiration date for the invoice.
+  - Describe the purpose of the payment (e.g., ebook).
+- Click 'Generate Invoice' to create it.
+
+ 
+
+**4. Share the Invoice** [2:37](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=157)
+
+![generated-image-at-00:02:37](https://loom.com/i/c088e16675c841d6bf01a8787d8b4513?workflows_screenshot=true)
+
+- After generating the invoice, you can view it.
+- Copy the invoice link to share with the customer.
+
+ 
+
+**5. Confirm Payment** [3:07](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=187)
+
+![generated-image-at-00:03:07](https://loom.com/i/b8b5ea5199f8449ab6e175f6604f9275?workflows_screenshot=true)
+
+- Once the customer pays, return to your dashboard.
+- Check for payment notifications.
+- Open the notification to confirm the payment has been received.
+
+ 
+
+**6. Download Receipt** [3:33](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=213)
+
+![generated-image-at-00:03:33](https://loom.com/i/fb6155d2d6d3461cb47944f6f6291beb?workflows_screenshot=true)
+
+- Navigate to the receipts section.
+- Find the relevant receipt for the completed transaction.
+- Download or print the receipt as needed.
+
+ 
+
+**7. Withdraw Funds** [4:08](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=248)
+
+![generated-image-at-00:04:08](https://loom.com/i/7410b2f4b97542108d758d3eb30e4217?workflows_screenshot=true)
+
+- Go to the funds withdrawal section.
+- Specify the amount you wish to withdraw.
+- Confirm the withdrawal request.
+
+ 
+
+**8. Access QR Code** [4:37](https://loom.com/share/b2135bb5820046e7a6fb9736c520580a?t=277)
+
+![generated-image-at-00:04:37](https://loom.com/i/35914b7569be4b7eb9ce98a4301ec0e4?workflows_screenshot=true)
+
+- Locate the universal QR code in your dashboard.
+- Click on it to view or share.
+
+### Cautionary Notes
+
+- Ensure that all wallet connections are secure to prevent unauthorized access.
+- Double-check customer email addresses before sending invoices to avoid payment issues.
+
+### Tips for Efficiency
+
+- Regularly update your profile information to ensure accurate invoicing.
+- Use the Multi-Pay option for recurring customers to simplify payment processes.
+- Keep track of invoice expiration dates to manage follow-ups effectively.
+
+### Link to Loom
+
+<https://loom.com/share/b2135bb5820046e7a6fb9736c520580a>
