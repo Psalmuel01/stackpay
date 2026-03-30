@@ -1,8 +1,16 @@
+import type { Metadata } from "next";
 import Footer from "@/components/Footer";
 import { ArrowRight, BadgeCheck, Globe, Lock, Sparkles, Workflow } from "lucide-react";
 import { supportedCurrencies } from "@stackpay/domain";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+
+export const metadata: Metadata = {
+  other: {
+    "talentapp:project_verification":
+      "74a5f6a08077644b438f3b69602b062aca292d19aafd2b996a5a971a52c8bc48fed8c1ccac74931dd7d03108c6d030baf093574b8cc2c0b08e641e37dbee4ce3"
+  }
+};
 
 const ParticleSphere = dynamic(() => import("@/components/ParticleSphere"), { ssr: false });
 
