@@ -1,0 +1,13 @@
+.git
+.DS_Store
+node_modules
+**/node_modules
+**/.next
+apps/api
+packages/contracts
+supabase
+docs
+README.md
+.env
+.env.local
+.env*.local
