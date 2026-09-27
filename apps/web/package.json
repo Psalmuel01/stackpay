@@ -6,19 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:security": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.112.0",
     "@react-three/fiber": "^8.17.10",
     "@stacks/auth": "^6.7.0",
     "@stacks/connect": "^7.0.4",
+    "@stacks/encryption": "^7.2.0",
     "@stacks/network": "^6.7.0",
     "@stacks/transactions": "^7.0.2",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.11",
     "lucide-react": "^0.469.0",
-    "next": "14.2.5",
+    "next": "14.2.35",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "recharts": "^2.12.7",
@@ -32,6 +34,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.9",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^4.0.7"
   }
 }

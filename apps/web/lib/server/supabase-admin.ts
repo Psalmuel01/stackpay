@@ -1,7 +1,7 @@
 type Primitive = string | number | boolean;
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   query?: Record<string, Primitive | null | undefined>;
   body?: unknown;
   prefer?: string;

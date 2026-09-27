@@ -1,3 +1,6 @@
+import { buildCreateInvoiceIntent } from "@/lib/server/stackpay-contracts";
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
 import { confirmInvoiceCreation } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
@@ -9,12 +12,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const authenticatedWallet = await requireMerchant(request);
     const payload = await request.json();
+    payload.walletAddress = authenticatedWallet;
     if (!payload.txId) {
       return jsonError(400, "invalid_request", "txId is required.");
     }
 
-    const sync = await syncInvoiceCreationTx(payload.txId);
+    const sync = await syncInvoiceCreationTx(payload.txId, { ...buildCreateInvoiceIntent(payload), sender: authenticatedWallet });
     logTransactionResponse("invoice.confirm.sync", {
       txId: payload.txId,
       sync,
@@ -43,7 +48,7 @@ export async function POST(request: Request) {
 
     const invoice = await confirmInvoiceCreation({
       walletAddress: payload.walletAddress,
-      txId: payload.txId,
+      txId: sync.txId,
       onchainId: sync.onchainId,
       amount: payload.amount,
       currency: payload.currency,
@@ -66,6 +71,6 @@ export async function POST(request: Request) {
     logTransactionResponse("invoice.confirm.response", responsePayload);
     return jsonOk(responsePayload);
   } catch (error) {
-    return jsonError(500, "invoice_confirm_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

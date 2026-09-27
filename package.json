@@ -4,7 +4,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "packages/contracts/*"
+    "packages/contracts/stackpay"
   ],
   "scripts": {
     "dev": "npm run dev:web",

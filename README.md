@@ -373,3 +373,6 @@ This SOP outlines the steps to create and manage invoices using the StackPay Bit
 ### Link to Loom
 
 <https://loom.com/share/b2135bb5820046e7a6fb9736c520580a>
+## Security hardening milestone
+
+Merchant access now requires a signed wallet challenge and a server session. Transaction confirmations verify the intended on-chain operation before recording financial state. See [security rollout and remaining blockers](docs/security-milestone.md) before deploying: the wallet-session migration, HTTPS app origin, webhook secret, and token asset names are required. This milestone does not make the app mainnet-ready.

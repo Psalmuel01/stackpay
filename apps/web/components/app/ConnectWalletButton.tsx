@@ -117,12 +117,16 @@ export default function ConnectWalletButton() {
       onFinish: () => {
         setConnected(true);
         setAddress(getConnectedWalletAddress());
+        window.dispatchEvent(new Event("stackpay:auth"));
       },
     });
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
+    const response = await fetch("/api/auth/session", { method: "DELETE" });
+    if (!response.ok) { window.alert("Could not sign out securely. Please try again."); return; }
     userSession.signUserOut();
+    window.dispatchEvent(new Event("stackpay:auth"));
     setConnected(false);
     setAddress(null);
     setBalances(null);

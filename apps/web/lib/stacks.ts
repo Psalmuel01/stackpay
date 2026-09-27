@@ -1,19 +1,9 @@
+import { intentValue } from "./contract-values";
+import { paymentPostConditions } from "./payment-postconditions";
 import { AppConfig, UserSession } from "@stacks/auth";
 import { openContractCall } from "@stacks/connect";
 import { StacksMainnet, StacksTestnet } from "@stacks/network";
-import {
-  AnchorMode,
-  noneCV,
-  PostConditionMode,
-  principalCV,
-  someCV,
-  stringAsciiCV,
-  stringUtf8CV,
-  trueCV,
-  falseCV,
-  uintCV,
-  type ClarityValue,
-} from "@stacks/transactions";
+import { AnchorMode, PostConditionMode } from "@stacks/transactions";
 
 const appConfig = new AppConfig(["store_write", "publish_data"]);
 
@@ -78,36 +68,6 @@ export type StackPayContractIntent = {
   notes: string[];
 };
 
-function isPaymentFunction(functionName: string) {
-  return (
-    functionName === "process-stx-payment" ||
-    functionName === "process-sip-010-payment" ||
-    functionName === "withdraw-stx-to" ||
-    functionName === "withdraw-token-to"
-  );
-}
-
-function toClarityValue(arg: ContractIntentArg): ClarityValue {
-  switch (arg.type) {
-    case "principal":
-      return principalCV(arg.value);
-    case "uint":
-      return uintCV(BigInt(arg.value));
-    case "bool":
-      return arg.value ? trueCV() : falseCV();
-    case "string-ascii":
-      return stringAsciiCV(arg.value);
-    case "string-utf8":
-      return stringUtf8CV(arg.value);
-    case "optional-string-ascii":
-      return arg.value ? someCV(stringAsciiCV(arg.value)) : noneCV();
-    case "optional-uint":
-      return arg.value ? someCV(uintCV(BigInt(arg.value))) : noneCV();
-    default:
-      return noneCV();
-  }
-}
-
 export async function submitContractIntent(
   intent: StackPayContractIntent,
   callbacks: {
@@ -121,20 +81,23 @@ export async function submitContractIntent(
     throw new Error("Invalid contract id.");
   }
 
-  console.log("[stackpay:tx] submit.intent", intent);
+  const sender = getConnectedWalletAddress();
+  if (!sender) throw new Error("Connect a wallet before submitting a transaction.");
+  const tokenAssets: Record<string, string> = {
+    [process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ?? "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token"]: process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "",
+    [process.env.NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID ?? "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx"]: process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "",
+  };
 
   return openContractCall({
     userSession,
     network: intent.network === "mainnet" ? "mainnet" : "testnet",
     anchorMode: AnchorMode.Any,
-    postConditionMode: isPaymentFunction(intent.functionName)
-      ? PostConditionMode.Allow
-      : PostConditionMode.Deny,
-    postConditions: [],
+    postConditionMode: PostConditionMode.Deny,
+    postConditions: paymentPostConditions(intent, sender, tokenAssets),
     contractAddress,
     contractName,
     functionName: intent.functionName,
-    functionArgs: intent.arguments.map(toClarityValue),
+    functionArgs: intent.arguments.map(intentValue),
     onFinish: (data) => {
       console.log("[stackpay:tx] wallet.finish", {
         functionName: intent.functionName,

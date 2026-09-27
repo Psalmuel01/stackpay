@@ -1,3 +1,5 @@
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import {
@@ -17,10 +19,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const qrLink = await getUniversalQrForWallet(walletAddress);
+    const authenticatedWallet = await requireMerchant(request);
+    const qrLink = await getUniversalQrForWallet(authenticatedWallet);
     return jsonOk(qrLink);
   } catch (error) {
-    return jsonError(500, "qr_link_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
 
@@ -30,10 +33,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const authenticatedWallet = await requireMerchant(request);
     const payload = await request.json();
+    payload.walletAddress = authenticatedWallet;
     const qrLink = await createUniversalQrDraft(payload);
     return jsonOk(qrLink, { status: 201 });
   } catch (error) {
-    return jsonError(500, "qr_link_create_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

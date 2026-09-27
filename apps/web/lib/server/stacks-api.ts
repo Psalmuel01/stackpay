@@ -1,3 +1,5 @@
+import { ApiError } from "./api-error";
+import { verifyTransactionPayload, type ExpectedTransaction } from "./transaction-verification";
 import { stacksNetworks } from "@stackpay/config";
 import { cvToHex, cvToValue, hexToCV, principalCV, stringAsciiCV } from "@stacks/transactions";
 
@@ -39,6 +41,8 @@ export type TxSyncResult =
       status: "success";
       resultRepr: string | null;
       onchainId: string | null;
+      senderAddress: string;
+      txId: string;
       confirmedAt: number | null;
     }
   | {
@@ -55,15 +59,6 @@ function parseContractId(contractId: string) {
   }
 
   return { contractAddress, contractName };
-}
-
-function parseOkAsciiResult(repr: string | null) {
-  if (!repr) {
-    return null;
-  }
-
-  const match = /^\(ok\s+"([^"]+)"\)$/.exec(repr.trim());
-  return match?.[1] ?? null;
 }
 
 function atomicToAmount(value: string | number | null | undefined, decimals: number) {
@@ -193,11 +188,14 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
   return Object.fromEntries(results) as ProcessorBalances;
 }
 
-export async function syncTransaction(txId: string): Promise<TxSyncResult> {
+export async function syncTransaction(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
+  if (typeof txId !== "string" || !/^0x[0-9a-f]{64}$/i.test(txId)) throw new ApiError(400, "invalid_tx_id", "A valid transaction id is required.");
+  txId = txId.toLowerCase();
   const response = await fetch(`${getStacksApiUrl()}/extended/v1/tx/${txId}`, {
     cache: "no-store",
   });
 
+  if (response.status === 404) return { status: "pending" };
   if (!response.ok) {
     throw new Error(`Failed to fetch transaction ${txId} from Stacks API.`);
   }
@@ -207,7 +205,7 @@ export async function syncTransaction(txId: string): Promise<TxSyncResult> {
   const resultRepr = payload.tx_result?.repr ?? null;
   const confirmedAt = typeof payload.burn_block_time === "number" ? payload.burn_block_time : null;
 
-  if (!status || status === "pending") {
+  if (!status || status === "pending" || (status === "success" && payload.is_unanchored === true)) {
     return { status: "pending" };
   }
 
@@ -215,7 +213,8 @@ export async function syncTransaction(txId: string): Promise<TxSyncResult> {
     return {
       status: "success",
       resultRepr,
-      onchainId: parseOkAsciiResult(resultRepr),
+      ...verifyTransactionPayload(payload, txId, expected),
+      txId,
       confirmedAt,
     };
   }
@@ -237,6 +236,6 @@ export async function syncTransaction(txId: string): Promise<TxSyncResult> {
   };
 }
 
-export async function syncInvoiceCreationTx(txId: string): Promise<TxSyncResult> {
-  return syncTransaction(txId);
+export async function syncInvoiceCreationTx(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
+  return syncTransaction(txId, expected);
 }

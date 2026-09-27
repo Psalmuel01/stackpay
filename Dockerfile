@@ -21,10 +21,21 @@ RUN npm ci --omit=optional --workspace @stackpay/web --include-workspace-root
 FROM node:22-alpine AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+# Preserve workspace-local dependencies (including the signature verifier).
+COPY --from=deps /repo/apps/web ./apps/web
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 ENV NEXT_TELEMETRY_DISABLED=1
+# Public configuration is compiled into the browser bundle. Never pass secrets here.
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_STACKS_NETWORK=testnet
+ARG NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID
+ARG NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID
+ARG NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID
+ARG NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID
+ARG NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME
+ARG NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME
 RUN npm run build:web
 
 # --- runner: minimal image with just the standalone server -----------------

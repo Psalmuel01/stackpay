@@ -1,5 +1,6 @@
+import { apiFailure } from "@/lib/server/http";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
-import { confirmPublicInvoiceCreation } from "@/lib/server/stackpay-service";
+import { confirmPublicInvoiceCreation, preparePublicInvoiceFromLink } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 import { syncInvoiceCreationTx } from "@/lib/server/stacks-api";
 
@@ -17,7 +18,8 @@ export async function POST(
       return jsonError(400, "invalid_request", "txId is required.");
     }
 
-    const sync = await syncInvoiceCreationTx(payload.txId);
+    const prepared = await preparePublicInvoiceFromLink({ ...payload, slug: context.params.slug });
+    const sync = await syncInvoiceCreationTx(payload.txId, prepared.contractIntent);
     logTransactionResponse("payment-link.invoice.confirm.sync", {
       slug: context.params.slug,
       txId: payload.txId,
@@ -47,14 +49,14 @@ export async function POST(
 
     const invoice = await confirmPublicInvoiceCreation({
       slug: context.params.slug,
-      txId: payload.txId,
+      txId: sync.txId,
       onchainId: sync.onchainId,
       amount: payload.amount,
       currency: payload.currency,
       customerName: payload.customerName,
       customerEmail: payload.customerEmail,
-      description: payload.description,
-      expiresInSeconds: payload.expiresInSeconds,
+      description: prepared.invoice.description,
+      expiresInSeconds: prepared.invoice.expires_in_seconds,
       confirmedAt: sync.confirmedAt,
     });
 
@@ -69,6 +71,6 @@ export async function POST(
     logTransactionResponse("payment-link.invoice.confirm.response", responsePayload);
     return jsonOk(responsePayload);
   } catch (error) {
-    return jsonError(500, "public_invoice_confirm_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

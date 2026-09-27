@@ -1,4 +1,5 @@
 "use client";
+import { toAtomicAmount } from "@/lib/amounts";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -58,10 +59,6 @@ function getProcessorContractId() {
   return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? `${address}.processor`;
 }
 
-function toAtomicAmount(amount: number, currency: "sBTC" | "STX" | "USDCx") {
-  const decimals = currency === "sBTC" ? 8 : 6;
-  return Math.round(Number(amount) * 10 ** decimals).toString();
-}
 
 function getTokenContractId(currency: string) {
   if (currency === "sBTC") {

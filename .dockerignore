@@ -10,3 +10,7 @@ README.md
 .env
 .env.local
 .env*.local
+
+# Never copy nested app secrets into either image.
+**/.env
+**/.env.*

@@ -1,7 +1,7 @@
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
-import { confirmInvoicePayment } from "@/lib/server/stackpay-service";
+import { confirmInvoicePayment, verifyInvoicePaymentTransaction } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
-import { syncInvoiceCreationTx } from "@/lib/server/stacks-api";
+import { apiFailure } from "@/lib/server/http";
 
 export async function POST(
   request: Request,
@@ -17,7 +17,7 @@ export async function POST(
       return jsonError(400, "invalid_request", "txId is required.");
     }
 
-    const sync = await syncInvoiceCreationTx(payload.txId);
+    const sync = await verifyInvoicePaymentTransaction(context.params.invoiceId, payload.txId);
     logTransactionResponse("invoice.payment.sync", {
       invoiceId: context.params.invoiceId,
       txId: payload.txId,
@@ -47,9 +47,9 @@ export async function POST(
 
     const invoice = await confirmInvoicePayment({
       invoiceId: context.params.invoiceId,
-      txId: payload.txId,
+      txId: sync.txId,
       receiptId: sync.onchainId,
-      payerWalletAddress: payload.payerWalletAddress ?? null,
+      payerWalletAddress: sync.senderAddress,
       confirmedAt: sync.confirmedAt,
     });
 
@@ -63,6 +63,6 @@ export async function POST(
     logTransactionResponse("invoice.payment.response", responsePayload);
     return jsonOk(responsePayload);
   } catch (error) {
-    return jsonError(500, "invoice_payment_confirm_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

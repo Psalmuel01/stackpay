@@ -1,3 +1,5 @@
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import {
@@ -17,10 +19,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const merchant = await getMerchantProfileByWallet(walletAddress);
+    const authenticatedWallet = await requireMerchant(request);
+    const merchant = await getMerchantProfileByWallet(authenticatedWallet);
     return jsonOk(merchant);
   } catch (error) {
-    return jsonError(500, "merchant_profile_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
 
@@ -30,7 +33,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    const authenticatedWallet = await requireMerchant(request);
     const payload = await request.json();
+    payload.walletAddress = authenticatedWallet;
     if (!payload.walletAddress) {
       return jsonError(400, "invalid_request", "walletAddress is required.");
     }
@@ -38,6 +43,6 @@ export async function POST(request: Request) {
     const merchant = await upsertMerchantProfile(payload);
     return jsonOk(merchant, { status: 201 });
   } catch (error) {
-    return jsonError(500, "merchant_profile_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

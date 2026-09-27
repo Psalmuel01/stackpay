@@ -1,3 +1,5 @@
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getDashboardData } from "@/lib/server/stackpay-service";
@@ -14,10 +16,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const dashboard = await getDashboardData(walletAddress);
+    const authenticatedWallet = await requireMerchant(request);
+    const dashboard = await getDashboardData(authenticatedWallet);
     return jsonOk(dashboard);
   } catch (error) {
-    return jsonError(500, "dashboard_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
 

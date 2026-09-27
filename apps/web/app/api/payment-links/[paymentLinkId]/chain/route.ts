@@ -1,5 +1,7 @@
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
-import { confirmPaymentLinkChain } from "@/lib/server/stackpay-service";
+import { confirmPaymentLinkChain, getOwnedPaymentLinkIntent } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 import { syncInvoiceCreationTx } from "@/lib/server/stacks-api";
 
@@ -12,26 +14,19 @@ export async function POST(
   }
 
   try {
+    const authenticatedWallet = await requireMerchant(request);
     const payload = await request.json();
-    let onchainLinkId = payload.onchainLinkId ?? null;
-
-    if (!onchainLinkId && payload.txId) {
-      const sync = await syncInvoiceCreationTx(payload.txId);
-      logTransactionResponse("payment-link.chain.sync", {
-        paymentLinkId: context.params.paymentLinkId,
-        txId: payload.txId,
-        sync,
-      });
-      if (sync.status === "success" && sync.onchainId) {
-        onchainLinkId = sync.onchainId;
-      } else if (sync.status !== "pending") {
-        return jsonError(400, "payment_link_chain_failed", sync.resultRepr ?? "Payment link transaction failed.");
-      }
-    }
+    payload.walletAddress = authenticatedWallet;
+    if (!payload.txId) return jsonError(400, "invalid_request", "txId is required.");
+    const intent = await getOwnedPaymentLinkIntent(context.params.paymentLinkId, authenticatedWallet);
+    const sync = await syncInvoiceCreationTx(payload.txId, intent);
+    if (sync.status === "pending") return jsonOk({ onchain_link_id: null, sync: { status: "pending" } });
+    if (sync.status !== "success" || !sync.onchainId) return jsonError(422, "payment_link_chain_failed", "Payment link transaction failed.");
+    const onchainLinkId = sync.onchainId;
 
     const paymentLink = await confirmPaymentLinkChain({
       id: context.params.paymentLinkId,
-      txId: payload.txId,
+      txId: sync.txId,
       onchainId: onchainLinkId,
     });
     logTransactionResponse("payment-link.chain.response", {
@@ -40,6 +35,6 @@ export async function POST(
     });
     return jsonOk(paymentLink);
   } catch (error) {
-    return jsonError(500, "payment_link_chain_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }

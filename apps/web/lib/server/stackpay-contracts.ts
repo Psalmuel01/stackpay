@@ -1,3 +1,5 @@
+import { toAtomicAmount } from "../amounts";
+export { toAtomicAmount } from "../amounts";
 type Currency = "sBTC" | "STX" | "USDCx";
 
 type ContractArg =
@@ -34,19 +36,6 @@ function getProcessorContractId() {
 
 function getNetwork() {
   return process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
-}
-
-function currencyDecimals(currency: Currency) {
-  if (currency === "sBTC") {
-    return 8;
-  }
-
-  return 6;
-}
-
-export function toAtomicAmount(amount: number, currency: Currency) {
-  const decimals = currencyDecimals(currency);
-  return Math.round(amount * 10 ** decimals).toString();
 }
 
 export function buildCreateInvoiceIntent(input: {

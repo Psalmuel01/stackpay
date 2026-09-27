@@ -1,3 +1,5 @@
+import { requireMerchant } from "@/lib/server/wallet-auth";
+import { apiFailure } from "@/lib/server/http";
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import {
@@ -17,10 +19,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const notifications = await listNotificationsForWallet(walletAddress);
+    const authenticatedWallet = await requireMerchant(request);
+    const notifications = await listNotificationsForWallet(authenticatedWallet);
     return jsonOk(notifications);
   } catch (error) {
-    return jsonError(500, "notifications_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
 
@@ -30,7 +33,9 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    const authenticatedWallet = await requireMerchant(request);
     const payload = await request.json();
+    payload.walletAddress = authenticatedWallet;
     if (!payload.walletAddress) {
       return jsonError(400, "invalid_request", "walletAddress is required.");
     }
@@ -38,7 +43,7 @@ export async function PATCH(request: Request) {
     const notifications = await markNotificationsReadForWallet(String(payload.walletAddress));
     return jsonOk(notifications);
   } catch (error) {
-    return jsonError(500, "notifications_update_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
 

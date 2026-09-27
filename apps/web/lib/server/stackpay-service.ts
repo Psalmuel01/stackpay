@@ -1,3 +1,5 @@
+import { ApiError } from "./api-error";
+import { toAtomicAmount } from "../amounts";
 import {
   buildCreatePublicInvoiceFromLinkIntent,
   buildCreateInvoiceIntent,
@@ -8,12 +10,13 @@ import {
   type ContractIntent,
 } from "@/lib/server/stackpay-contracts";
 import { makeEntityKey, makeSlugWithSuffix, slugify } from "@/lib/server/ids";
-import { getProcessorBalances, tokenContracts } from "@/lib/server/stacks-api";
+import { getProcessorBalances, tokenContracts, syncTransaction } from "@/lib/server/stacks-api";
 import {
   insertRow,
   patchRows,
   selectRows,
   upsertRow,
+  supabaseRequest,
 } from "@/lib/server/supabase-admin";
 
 export type Currency = "sBTC" | "STX" | "USDCx";
@@ -546,21 +549,32 @@ export async function prepareInvoiceCreation(input: CreateInvoiceInput) {
   };
 }
 
+async function persistConfirmedInvoice(row: Row) {
+  // A replay must never reset a paid invoice or replace customer/merchant data.
+  const inserted = await supabaseRequest("invoices", {
+    method: "POST", query: { on_conflict: "onchain_invoice_id" }, body: row,
+    prefer: "resolution=ignore-duplicates,return=representation",
+  });
+  if (inserted?.[0]) return inserted[0];
+  const existing = await getInvoiceByIdOrOnchainId(String(row.onchain_invoice_id));
+  if (!existing || existing.tx_id !== row.tx_id || existing.merchant_id !== row.merchant_id) {
+    throw new ApiError(409, "invoice_conflict", "This invoice id already belongs to another transaction or deployment.");
+  }
+  return existing;
+}
+
 export async function confirmInvoiceCreation(input: ConfirmInvoiceInput) {
   ensurePositiveAmount(input.amount, "amount");
   const walletAddress = ensureWalletAddress(input.walletAddress);
-  const merchant = await upsertMerchantProfile({
-    walletAddress,
-    settlementWallet: input.recipientAddress || walletAddress,
-  });
+  const merchant = await getMerchantProfileByWallet(walletAddress);
+  if (!merchant) throw new ApiError(404, "merchant_not_found", "Merchant profile not found.");
 
   const confirmedAtMs =
     typeof input.confirmedAt === "number" && input.confirmedAt > 0
       ? input.confirmedAt * 1000
       : Date.now();
 
-  const invoice = await upsertRow(
-    "invoices",
+  const invoice = await persistConfirmedInvoice(
     {
       merchant_id: merchant.id,
       onchain_invoice_id: input.onchainId,
@@ -573,8 +587,7 @@ export async function confirmInvoiceCreation(input: ConfirmInvoiceInput) {
       customer_email: input.customerEmail ?? "",
       recipient_address: input.recipientAddress || walletAddress,
       expires_at: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
-    },
-    "onchain_invoice_id"
+    }
   );
 
   await recordActivity(
@@ -797,6 +810,18 @@ export async function createPaymentLinkDraft(input: CreatePaymentLinkInput) {
     merchant: ensuredMerchant,
     contractIntent,
   };
+}
+
+export async function getOwnedPaymentLinkIntent(id: string, wallet: string) {
+  const merchant = await getMerchantProfileByWallet(wallet);
+  const link = await selectSingle<Row>("payment_links", { id: `eq.${id}` });
+  if (!merchant || !link || link.merchant_id !== merchant.id) throw new ApiError(403, "forbidden", "Payment link is not owned by this wallet.");
+  const intent = link.draft_contract_call as ContractIntent | null;
+  const expectedContract = process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID;
+  if (!intent || intent.contractId !== expectedContract || !["create-multipay-link", "create-universal-qr-link"].includes(intent.functionName)) {
+    throw new ApiError(409, "invalid_link_intent", "Payment link has no valid deployment intent.");
+  }
+  return { ...intent, sender: wallet };
 }
 
 export async function confirmPaymentLinkChain(input: ChainConfirmationInput) {
@@ -1039,8 +1064,7 @@ export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceIn
       ? input.confirmedAt * 1000
       : Date.now();
 
-  const invoice = await upsertRow(
-    "invoices",
+  const invoice = await persistConfirmedInvoice(
     {
       merchant_id: paymentLink.merchant_id,
       onchain_invoice_id: input.onchainId,
@@ -1053,10 +1077,9 @@ export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceIn
       ),
       customer_name: input.customerName ?? "",
       customer_email: input.customerEmail ?? "",
-      recipient_address: String(paymentLink.merchant?.settlement_wallet || ""),
+      recipient_address: String(paymentLink.draft_contract_call?.arguments?.[0]?.value || ""),
       expires_at: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
-    },
-    "onchain_invoice_id"
+    }
   );
 
   await recordActivity(
@@ -1074,6 +1097,22 @@ export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceIn
   );
 
   return invoice;
+}
+
+export async function verifyInvoicePaymentTransaction(invoiceId: string, txId: string) {
+  const invoice = await getInvoiceByIdOrOnchainId(invoiceId);
+  if (!invoice) throw new ApiError(404, "invoice_not_found", "Invoice not found.");
+  const currency = invoice.currency as Currency;
+  const args: ContractIntent["arguments"] = [
+    { type: "string-ascii", value: String(invoice.onchain_invoice_id) },
+    { type: "uint", value: toAtomicAmount(String(invoice.amount), currency) },
+  ];
+  if (currency !== "STX") args.push({ type: "principal", value: tokenContracts[currency] });
+  return syncTransaction(txId, {
+    contractId: process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "",
+    functionName: currency === "STX" ? "process-stx-payment" : "process-sip-010-payment",
+    network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet", arguments: args,
+  });
 }
 
 export async function confirmInvoicePayment(input: ConfirmInvoicePaymentInput) {
@@ -1442,11 +1481,14 @@ export async function processChainhookInvoicePaidEvent(input: ChainhookInvoicePa
     };
   }
 
+  const sync = await verifyInvoicePaymentTransaction(input.invoiceId, input.txId);
+  if (sync.status !== "success" || sync.onchainId !== input.receiptId) throw new ApiError(422, "unverified_event", "Payment event could not be verified.");
   const updatedInvoice = await confirmInvoicePayment({
     invoiceId: input.invoiceId,
-    txId: input.txId,
+    txId: sync.txId,
     receiptId: input.receiptId,
-    payerWalletAddress: input.payerWalletAddress ?? null,
+    payerWalletAddress: sync.senderAddress,
+    confirmedAt: sync.confirmedAt,
   });
 
   const merchant = await selectSingle<Row>("merchant_profiles", {

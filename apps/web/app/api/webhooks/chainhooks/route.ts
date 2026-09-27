@@ -1,11 +1,12 @@
-import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
+import { timingSafeEqual } from "node:crypto";
+import { apiFailure, jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
 import { processChainhookInvoicePaidEvent } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
 function isAuthorized(request: Request) {
   const expectedSecret = process.env.STACKPAY_CHAINHOOK_SECRET ?? "";
   if (!expectedSecret) {
-    return true;
+    return false;
   }
 
   const headerSecret =
@@ -14,7 +15,9 @@ function isAuthorized(request: Request) {
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     "";
 
-  return headerSecret === expectedSecret;
+  const actual = Buffer.from(headerSecret);
+  const expected = Buffer.from(expectedSecret);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 function getArchitectureContractId() {
@@ -376,6 +379,6 @@ export async function POST(request: Request) {
     logTransactionResponse("chainhooks.webhook", responsePayload);
     return jsonOk(responsePayload, { status: 202 });
   } catch (error) {
-    return jsonError(500, "chainhook_webhook_failed", error instanceof Error ? error.message : "Unexpected error.");
+    return apiFailure(error);
   }
 }
