@@ -17,6 +17,14 @@ The current working MVP supports:
 - in-app notifications with toast + sound
 - dashboard metrics from real merchant invoice/link data
 
+## Start here
+
+- **Merchant guides:** open `/docs` in the running application. Topics have shareable section links and a topic filter.
+- **Security and rollout:** [deployment requirements and remaining blockers](docs/security-milestone.md).
+- **Development:** [local setup and verification](docs/development.md).
+
+The current release is a testnet preview. Subscriptions, automated payouts, and a supported public SDK are not available. Payments accrue in the processor contract; merchants withdraw manually. Dashboard USD conversions use demo rates and are not accounting valuations.
+
 ## Architecture
 
 StackPay currently uses:
@@ -26,27 +34,27 @@ StackPay currently uses:
 - `packages/contracts/stackpay`: Clarity contracts and tests
 - `Stacks wallets`: merchant identity and contract signing
 
-There is still an `apps/api` scaffold in the repo, but the active MVP backend now lives in Next.js route handlers under [`apps/web/app/api`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/api).
+There is still an `apps/api` scaffold in the repo, but the active MVP backend now lives in Next.js route handlers under [`apps/web/app/api`](apps/web/app/api).
 
 ## Monorepo Structure
 
-- [`apps/web`](/Users/sam/Desktop/Stacks/Stackpay/apps/web): web app, API routes, hosted payment surfaces
-- [`apps/api`](/Users/sam/Desktop/Stacks/Stackpay/apps/api): legacy API scaffold, not the active MVP backend
-- [`packages/contracts/stackpay`](/Users/sam/Desktop/Stacks/Stackpay/packages/contracts/stackpay): Clarity contracts and tests
-- [`packages/domain`](/Users/sam/Desktop/Stacks/Stackpay/packages/domain): shared business metadata
-- [`packages/integrations`](/Users/sam/Desktop/Stacks/Stackpay/packages/integrations): integration/webhook manifests
-- [`packages/sdk`](/Users/sam/Desktop/Stacks/Stackpay/packages/sdk): SDK scaffolding
-- [`packages/ui`](/Users/sam/Desktop/Stacks/Stackpay/packages/ui): navigation metadata and shared UI config
-- [`packages/config`](/Users/sam/Desktop/Stacks/Stackpay/packages/config): environment and network helpers
-- [`supabase`](/Users/sam/Desktop/Stacks/Stackpay/supabase): Supabase config and migrations
-- [`docs`](/Users/sam/Desktop/Stacks/Stackpay/docs): MVP notes, Chainhook config, integration docs
+- [`apps/web`](apps/web): web app, API routes, hosted payment surfaces
+- [`apps/api`](apps/api): legacy API scaffold, not the active MVP backend
+- [`packages/contracts/stackpay`](packages/contracts/stackpay): Clarity contracts and tests
+- [`packages/domain`](packages/domain): shared business metadata
+- [`packages/integrations`](packages/integrations): integration/webhook manifests
+- [`packages/sdk`](packages/sdk): SDK scaffolding
+- [`packages/ui`](packages/ui): navigation metadata and shared UI config
+- [`packages/config`](packages/config): environment and network helpers
+- [`supabase`](supabase): Supabase config and migrations
+- [`docs`](docs): MVP notes, Chainhook config, integration docs
 
 ## Merchant Flows
 
 ### Standard invoice
 
 1. Merchant completes profile setup.
-2. Merchant creates a standard invoice from [`/create-invoice`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/(app)/create-invoice/page.tsx).
+2. Merchant creates a standard invoice from [`/create-invoice`](apps/web/app/(app)/create-invoice/page.tsx).
 3. Wallet submits `architecture.create-invoice`.
 4. Chain result returns the on-chain invoice id.
 5. Only then does StackPay store the invoice in Supabase.
@@ -66,8 +74,8 @@ There is still an `apps/api` scaffold in the repo, but the active MVP backend no
 
 Merchant management:
 
-- create from [`/create-invoice`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/(app)/create-invoice/page.tsx)
-- review all created MultiPay routes at [`/payment-links`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/(app)/payment-links/page.tsx)
+- create from [`/create-invoice`](apps/web/app/(app)/create-invoice/page.tsx)
+- review all created MultiPay routes at [`/payment-links`](apps/web/app/(app)/payment-links/page.tsx)
 
 ### Universal QR
 
@@ -76,7 +84,7 @@ The universal QR route is a permanent public route for flexible real-world payme
 - customers choose asset
 - customers choose amount
 - the route remains stable
-- managed from [`/qr-link`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/(app)/qr-link/page.tsx)
+- managed from [`/qr-link`](apps/web/app/(app)/qr-link/page.tsx)
 
 ## On-Chain + Off-Chain Responsibilities
 
@@ -107,14 +115,14 @@ Supabase stores:
 Current payment notifications work like this:
 
 1. Hiro Chainhook watches the deployed StackPay `architecture` contract.
-2. On `invoice-paid`, Hiro posts to [`/api/webhooks/chainhooks`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/api/webhooks/chainhooks/route.ts).
+2. On `invoice-paid`, Hiro posts to [`/api/webhooks/chainhooks`](apps/web/app/api/webhooks/chainhooks/route.ts).
 3. StackPay confirms the invoice/receipt in Supabase.
 4. A notification row is inserted.
-5. The header bell and toast update from [`NotificationsButton.tsx`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/components/app/NotificationsButton.tsx).
+5. The header bell and toast update from [`NotificationsButton.tsx`](apps/web/components/app/NotificationsButton.tsx).
 
 The sample upload file is:
 
-- [`docs/stackpay-chainhook-invoice-paid.json`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-chainhook-invoice-paid.json)
+- [`docs/stackpay-chainhook-invoice-paid.json`](docs/stackpay-chainhook-invoice-paid.json)
 
 Email notifications are not implemented yet. The current pipeline is in-app only.
 
@@ -122,8 +130,8 @@ Email notifications are not implemented yet. The current pipeline is in-app only
 
 Paid invoices can generate receipt PDFs through:
 
-- [`/api/receipts/[receiptId]/pdf`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/app/api/receipts/[receiptId]/pdf/route.ts)
-- PDF generator lives in [`receipt-pdf.ts`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/lib/server/receipt-pdf.ts)
+- [`/api/receipts/[receiptId]/pdf`](apps/web/app/api/receipts/[receiptId]/pdf/route.ts)
+- PDF generator lives in [`receipt-pdf.ts`](apps/web/lib/server/receipt-pdf.ts)
 
 ## Getting Started
 
@@ -204,7 +212,7 @@ If you switch from local to remote, make sure your remote DB actually has the cu
 
 ## Required Environment Variables
 
-See [`apps/web/.env.example`](/Users/sam/Desktop/Stacks/Stackpay/apps/web/.env.example).
+See [`apps/web/.env.example`](apps/web/.env.example).
 
 Important values:
 
@@ -261,9 +269,9 @@ Core API routes:
 
 ## Supporting Docs
 
-- [`docs/stackpay-mvp-blueprint.md`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-mvp-blueprint.md)
-- [`docs/stackpay-supabase-mvp.md`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-supabase-mvp.md)
-- [`docs/stackpay-chainhook-invoice-paid.json`](/Users/sam/Desktop/Stacks/Stackpay/docs/stackpay-chainhook-invoice-paid.json)
+- [`docs/stackpay-mvp-blueprint.md`](docs/stackpay-mvp-blueprint.md)
+- [`docs/stackpay-supabase-mvp.md`](docs/stackpay-supabase-mvp.md)
+- [`docs/stackpay-chainhook-invoice-paid.json`](docs/stackpay-chainhook-invoice-paid.json)
 
 
 ## Creating Invoices with StackPay

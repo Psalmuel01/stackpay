@@ -156,7 +156,7 @@ export default function ConnectWalletButton() {
       <button
         disabled={connecting}
         onClick={handleConnect}
-        className="button-glow rounded-full border border-white/20 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:scale-[1.02]"
+        className="secondary-button"
       >
         {connecting ? "Connecting…" : "Connect Wallet"}
       </button>
@@ -168,6 +168,8 @@ export default function ConnectWalletButton() {
   return (
     <div className="relative" ref={ref}>
       <button
+        aria-expanded={open}
+        aria-label="Connected wallet options"
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:border-white/20 hover:text-white"
       >
@@ -176,7 +178,7 @@ export default function ConnectWalletButton() {
       </button>
       {connectionError && <p role="alert" className="mt-2 max-w-xs text-sm text-rose-300">{connectionError}</p>}
       {open ? (
-        <div className="absolute right-0 top-[calc(100%+12px)] w-80 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+        <div className="absolute right-0 top-[calc(100%+12px)] w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <div className="rounded-2xl bg-white/5 px-4 py-4">
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Connected wallet</div>
             <div className="mt-2 font-mono text-xs text-white/75">{truncateAddress(address)}</div>

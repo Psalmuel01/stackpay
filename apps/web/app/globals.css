@@ -21,11 +21,23 @@ body {
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background: radial-gradient(1200px 800px at 75% 15%, rgba(255, 255, 255, 0.07), transparent 55%),
-    radial-gradient(800px 600px at 20% 85%, rgba(255, 255, 255, 0.05), transparent 60%),
+  background:
+    radial-gradient(
+      1200px 800px at 75% 15%,
+      rgba(255, 255, 255, 0.07),
+      transparent 55%
+    ),
+    radial-gradient(
+      800px 600px at 20% 85%,
+      rgba(255, 255, 255, 0.05),
+      transparent 60%
+    ),
     #070707;
   color: #f5f5f5;
-  font-feature-settings: "ss01" 1, "ss02" 1, "cv01" 1;
+  font-feature-settings:
+    "ss01" 1,
+    "ss02" 1,
+    "cv01" 1;
 }
 
 code,
@@ -39,7 +51,11 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.03) 1px, transparent 0);
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 0
+  );
   background-size: 18px 18px;
   opacity: 0.35;
   mix-blend-mode: soft-light;
@@ -82,7 +98,11 @@ body::before {
   content: "";
   position: absolute;
   inset: -40%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.25), transparent 55%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.25),
+    transparent 55%
+  );
   opacity: 0;
   transition: opacity 0.4s ease;
 }
@@ -123,4 +143,122 @@ body::before {
 
 .accent-underline {
   background: linear-gradient(transparent 70%, rgba(252, 101, 50, 0.25) 70%);
+}
+
+/* Shared interaction and layout foundations. */
+:root {
+  --accent: #fc6532;
+  --surface: #111316;
+  --border: rgba(255, 255, 255, 0.1);
+}
+body {
+  background:
+    radial-gradient(
+      900px 500px at 80% 0%,
+      rgba(252, 101, 50, 0.035),
+      transparent 70%
+    ),
+    #0b0c0e;
+}
+body::before {
+  display: none;
+}
+::selection {
+  background: rgba(252, 101, 50, 0.3);
+  color: white;
+}
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #ff9069;
+  outline-offset: 4px;
+}
+:where(button, a, input, select, textarea) {
+  -webkit-tap-highlight-color: transparent;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+input,
+textarea,
+select {
+  accent-color: var(--accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: #83858a;
+}
+.glass {
+  background: #111316;
+  border-color: var(--border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  backdrop-filter: none;
+}
+.pill-active {
+  background: rgba(252, 101, 50, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(252, 101, 50, 0.3);
+}
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  transform: translateY(-150%);
+  background: white;
+  color: black;
+  padding: 12px 20px;
+  border-radius: 8px;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.mobile-dock {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+.primary-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  border-radius: 10px;
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.primary-button {
+  background: #fc6532;
+  color: #160b05;
+  border: 1px solid #fc6532;
+}
+.primary-button:hover {
+  background: #ff865d;
+  border-color: #ff865d;
+}
+.secondary-button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e5e5e5;
+  background: rgba(255, 255, 255, 0.025);
+}
+.secondary-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.docs-section {
+  scroll-margin-top: 110px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

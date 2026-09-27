@@ -1,30 +1,40 @@
+"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Logo from "@/components/Logo";
-import { sitePrimaryActions } from "@stackpay/ui";
-
+import { ArrowUpRight } from "lucide-react";
 export default function SiteHeader() {
+  const pathname = usePathname();
   return (
-    <header className="relative z-30 w-full">
-      <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-6">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0c0e]/95 backdrop-blur-xl">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" aria-label="StackPay home">
-          <Logo size={42} />
+          <Logo size={38} />
         </Link>
-
-        <div className="flex items-center gap-3">
-          {sitePrimaryActions.map((item, index) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                index === 0
-                  ? "rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:border-white/30 hover:text-white"
-                  : "button-glow inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-5 py-2 text-sm font-semibold text-black transition hover:scale-[1.02]"
-              }
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
+        <nav
+          aria-label="Main navigation"
+          className="flex items-center gap-4 sm:gap-7"
+        >
+          <Link
+            href="/#product"
+            className="hidden text-sm text-white/60 hover:text-white sm:block"
+          >
+            Product
+          </Link>
+          <Link
+            href="/docs"
+            aria-current={pathname === "/docs" ? "page" : undefined}
+            className={`text-sm hover:text-white ${pathname === "/docs" ? "text-[#ff9069]" : "text-white/60"}`}
+          >
+            Docs
+          </Link>
+          <Link href="/dashboard" className="secondary-button">
+            Workspace <ArrowUpRight size={15} className="hidden sm:block" />
+          </Link>
+        </nav>
       </div>
     </header>
   );

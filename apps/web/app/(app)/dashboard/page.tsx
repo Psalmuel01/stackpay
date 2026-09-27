@@ -207,7 +207,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="mt-6 text-xs text-white/55">
-                  Paid invoice totals awaiting settlement.
+                  Current processor balance available for withdrawal.
                 </div>
               </GlassCard>
             ))}
@@ -220,7 +220,7 @@ export default function DashboardPage() {
                 {formatUsd(dashboard?.stats.totalVolumeUsd ?? 0)}
               </div>
               <div className="mt-3 text-sm text-white/40">
-                USD equivalent total
+                Estimated USD · demo rates
               </div>
             </GlassCard>
             <GlassCard>
@@ -259,7 +259,7 @@ export default function DashboardPage() {
                     Last 7 days for {merchantName}
                   </div>
                 </div>
-                <StatusBadge label="Live" />
+                <StatusBadge label="Recorded" />
               </div>
               <TrendChart points={trendPoints} accent />
             </GlassCard>

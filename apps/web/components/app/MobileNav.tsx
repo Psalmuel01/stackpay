@@ -1,28 +1,38 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { mobileNavigation } from "@stackpay/ui";
-
+import {
+  LayoutDashboard,
+  FileText,
+  Plus,
+  QrCode,
+  BookOpen,
+} from "lucide-react";
+const items = [
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Invoices", href: "/invoices", icon: FileText },
+  { label: "Create", href: "/create-invoice", icon: Plus },
+  { label: "QR", href: "/qr-link", icon: QrCode },
+  { label: "Docs", href: "/docs", icon: BookOpen },
+];
 export default function MobileNav() {
   const pathname = usePathname();
-
   return (
-    <nav className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-black/60 p-2 text-xs text-white/70 backdrop-blur xl:hidden">
-      {mobileNavigation.map((item) => {
-        const active = pathname?.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`rounded-full px-2 py-2 transition ${
-              active ? "pill-active text-white" : "hover:text-white"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav
+      aria-label="Mobile shortcuts"
+      className="mobile-dock fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-white/10 bg-[#101114]/95 px-2 pt-2 backdrop-blur-xl md:hidden"
+    >
+      {items.map(({ label, href, icon: Icon }) => (
+        <Link
+          key={href}
+          href={href}
+          aria-current={pathname === href ? "page" : undefined}
+          className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] ${pathname === href ? "bg-[#fc6532]/10 text-[#ff9069]" : "text-white/60 hover:text-white"}`}
+        >
+          <Icon size={19} aria-hidden="true" />
+          {label}
+        </Link>
+      ))}
     </nav>
   );
 }

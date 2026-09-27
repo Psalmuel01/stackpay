@@ -20,7 +20,7 @@ export default function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em]",
+        "inline-flex rounded-full border px-3 py-1 text-xs font-medium",
         styles[label] ?? "border-white/10 bg-white/5 text-white/60",
         className
       )}

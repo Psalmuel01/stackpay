@@ -184,7 +184,7 @@ export default function NotificationsButton() {
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+12px)] w-96 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+        <div className="fixed inset-x-4 top-20 max-h-[70vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-96 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <div className="mb-2 flex items-center justify-between px-3">
             <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Notifications</div>
             <span className="text-xs text-white/40">{notifications.length} recent</span>
@@ -222,7 +222,7 @@ export default function NotificationsButton() {
               })
             ) : (
               <div className="rounded-2xl bg-white/5 px-3 py-4 text-sm text-white/55">
-                No notifications yet. Invoice-paid events will show up here once the Chainhook webhook starts posting.
+                You’re all caught up. Updates about confirmed payments will appear here.
               </div>
             )}
           </div>
@@ -230,7 +230,7 @@ export default function NotificationsButton() {
       ) : null}
 
       {toastNotification ? (
-        <div className="absolute left-0 top-[calc(100%+12px)] w-80 rounded-3xl border border-emerald-300/30 bg-[#07110c]/95 p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+        <div className="fixed inset-x-4 top-20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-80 rounded-3xl border border-emerald-300/30 bg-[#07110c]/95 p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-300/80">New payment</div>
           <div className="mt-2 text-sm font-medium">{toastNotification.title}</div>
           <div className="mt-1 text-sm text-white/65">{toastNotification.body}</div>
