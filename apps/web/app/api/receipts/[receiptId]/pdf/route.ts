@@ -1,3 +1,4 @@
+import { getSessionWallet } from "@/lib/server/wallet-auth";
 import { buildReceiptPdf } from "@/lib/server/receipt-pdf";
 import { getReceiptDetailsByReceiptId } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
@@ -10,7 +11,7 @@ export async function GET(
     return new Response("Supabase environment variables are missing.", { status: 503 });
   }
 
-  const receiptData = await getReceiptDetailsByReceiptId(context.params.receiptId);
+  const receiptData = await getReceiptDetailsByReceiptId(context.params.receiptId, await getSessionWallet(_request));
   if (!receiptData) {
     return new Response("Receipt not found.", { status: 404 });
   }

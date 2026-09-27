@@ -1,3 +1,4 @@
+import { publicInvoice } from "@/lib/server/public-projections";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getInvoiceDetailsByOnchainId } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
@@ -16,7 +17,7 @@ export async function GET(
       return jsonError(404, "not_found", "Invoice not found.");
     }
 
-    return jsonOk(invoice);
+    return jsonOk(publicInvoice(invoice));
   } catch (error) {
     return jsonError(500, "invoice_lookup_failed", error instanceof Error ? error.message : "Unexpected error.");
   }

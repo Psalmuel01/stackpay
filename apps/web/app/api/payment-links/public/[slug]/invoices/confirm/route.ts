@@ -1,3 +1,4 @@
+import { publicInvoice } from "@/lib/server/public-projections";
 import { apiFailure } from "@/lib/server/http";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
 import { confirmPublicInvoiceCreation, preparePublicInvoiceFromLink } from "@/lib/server/stackpay-service";
@@ -61,7 +62,7 @@ export async function POST(
     });
 
     const responsePayload = {
-      invoice,
+      invoice: publicInvoice(invoice),
       sync: {
         status: "success",
         onchainInvoiceId: sync.onchainId,

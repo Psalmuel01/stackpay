@@ -1,3 +1,4 @@
+import { publicInvoice } from "@/lib/server/public-projections";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
 import { confirmInvoicePayment, verifyInvoicePaymentTransaction } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
@@ -54,7 +55,7 @@ export async function POST(
     });
 
     const responsePayload = {
-      invoice,
+      invoice: publicInvoice(invoice),
       sync: {
         status: "success",
         receiptId: sync.onchainId,

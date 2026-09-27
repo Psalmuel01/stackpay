@@ -15,8 +15,6 @@ type RemoteInvoice = {
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
-  customer_name: string;
-  customer_email: string;
   expires_at: string | null;
   paid_at: string | null;
   merchant?: {
@@ -330,9 +328,9 @@ export default function HostedPaymentPage({
                 <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Customer</div>
                   <div className="mt-2 text-sm text-white/75">
-                    {invoice.customer_name || "Customer"}
+                    Customer details are private
                   </div>
-                  <div className="mt-1 text-xs text-white/40">{invoice.customer_email || "No email"}</div>
+                  <div className="mt-1 text-xs text-white/40">Contact the merchant for account-specific details.</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Expires</div>

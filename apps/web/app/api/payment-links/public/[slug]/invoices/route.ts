@@ -1,3 +1,4 @@
+import { publicPaymentLink } from "@/lib/server/public-projections";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { preparePublicInvoiceFromLink } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
@@ -21,7 +22,7 @@ export async function POST(
       description: payload.description,
       expiresInSeconds: payload.expiresInSeconds,
     });
-    return jsonOk(result, { status: 201 });
+    return jsonOk({ ...result, paymentLink: publicPaymentLink(result.paymentLink) }, { status: 201 });
   } catch (error) {
     return jsonError(500, "public_invoice_prepare_failed", error instanceof Error ? error.message : "Unexpected error.");
   }
