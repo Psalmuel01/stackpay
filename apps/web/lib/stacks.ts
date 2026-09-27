@@ -1,54 +1,8 @@
 import { intentValue } from "./contract-values";
 import { paymentPostConditions } from "./payment-postconditions";
-import { AppConfig, UserSession } from "@stacks/auth";
-import { openContractCall } from "@stacks/connect";
-import { StacksMainnet, StacksTestnet } from "@stacks/network";
-import { AnchorMode, PostConditionMode } from "@stacks/transactions";
-
-const appConfig = new AppConfig(["store_write", "publish_data"]);
-
-export const userSession = new UserSession({ appConfig });
-
-export const stacksNetwork =
-  process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet"
-    ? new StacksMainnet()
-    : new StacksTestnet();
-
-function getAppBaseUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-
-  if (typeof window !== "undefined" && window.location.origin) {
-    return window.location.origin;
-  }
-
-  return "http://localhost:3000";
-}
-
-export function getAppDetails() {
-  const baseUrl = getAppBaseUrl().replace(/\/$/, "");
-  const iconPath = process.env.NEXT_PUBLIC_APP_ICON ?? "/stackpay-icon.svg";
-  const iconUrl = /^https?:\/\//.test(iconPath) ? iconPath : `${baseUrl}${iconPath.startsWith("/") ? iconPath : `/${iconPath}`}`;
-
-  return {
-    name: process.env.NEXT_PUBLIC_APP_NAME ?? "StackPay",
-    icon: iconUrl,
-    url: baseUrl,
-  };
-}
-
-export function getConnectedWalletAddress() {
-  if (!userSession.isUserSignedIn()) {
-    return null;
-  }
-
-  const data = userSession.loadUserData();
-  const networkKey =
-    process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet";
-
-  return data.profile?.stxAddress?.[networkKey] ?? null;
-}
+import { request } from "@stacks/connect";
+import { getConnectedProvider, getConnectedWalletAddress } from "./wallet-connection";
+export { getConnectedWalletAddress } from "./wallet-connection";
 
 type ContractIntentArg =
   | { type: "principal"; value: string }
@@ -88,28 +42,21 @@ export async function submitContractIntent(
     [process.env.NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID ?? "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx"]: process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "",
   };
 
-  return openContractCall({
-    userSession,
-    network: intent.network === "mainnet" ? "mainnet" : "testnet",
-    anchorMode: AnchorMode.Any,
-    postConditionMode: PostConditionMode.Deny,
-    postConditions: paymentPostConditions(intent, sender, tokenAssets),
-    contractAddress,
-    contractName,
-    functionName: intent.functionName,
-    functionArgs: intent.arguments.map(intentValue),
-    onFinish: (data) => {
-      console.log("[stackpay:tx] wallet.finish", {
-        functionName: intent.functionName,
-        txId: data.txId,
-      });
-      callbacks.onFinish?.(data);
-    },
-    onCancel: () => {
-      console.log("[stackpay:tx] wallet.cancel", {
-        functionName: intent.functionName,
-      });
-      callbacks.onCancel?.();
-    },
-  });
+  try {
+    const result = await request({ provider: getConnectedProvider(), enableLocalStorage: false }, "stx_callContract", {
+      address: sender as `S${string}`,
+      network: intent.network === "mainnet" ? "mainnet" : "testnet",
+      postConditionMode: "deny",
+      postConditions: paymentPostConditions(intent, sender, tokenAssets),
+      contract: intent.contractId as `${string}.${string}`,
+      functionName: intent.functionName,
+      functionArgs: intent.arguments.map(intentValue),
+    });
+    if (!result.txid) throw new Error("The wallet did not return a broadcast transaction id.");
+    callbacks.onFinish?.({ txId: result.txid });
+  } catch (error) {
+    const code = (error as { code?: number } | null)?.code;
+    if (code === -31001 || code === -32000 || code === 4001) { callbacks.onCancel?.(); return; }
+    throw error;
+  }
 }

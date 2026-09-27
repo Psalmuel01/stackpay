@@ -13,7 +13,7 @@
     "@react-three/drei": "^9.112.0",
     "@react-three/fiber": "^8.17.10",
     "@stacks/auth": "^6.7.0",
-    "@stacks/connect": "^7.0.4",
+    "@stacks/connect": "~8.1.9",
     "@stacks/encryption": "^7.2.0",
     "@stacks/network": "^6.7.0",
     "@stacks/transactions": "^7.0.2",

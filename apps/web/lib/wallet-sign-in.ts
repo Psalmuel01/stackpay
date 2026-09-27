@@ -1,6 +1,5 @@
 "use client";
-import { openSignatureRequestPopup } from "@stacks/connect";
-import { getAppDetails, getConnectedWalletAddress, stacksNetwork, userSession } from "./stacks";
+import { getConnectedWalletAddress, signWalletMessage, walletErrorMessage } from "./wallet-connection";
 let signingIn: Promise<void> | null = null;
 export function signInWithWallet() {
   if (signingIn) return signingIn;
@@ -10,10 +9,9 @@ export function signInWithWallet() {
     const challengeResponse = await fetch("/api/auth/challenge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ walletAddress }) });
     const challenge = await challengeResponse.json();
     if (!challengeResponse.ok) throw new Error(challenge.error?.message ?? "Could not start sign-in.");
-    const signed = await new Promise<{ signature: string; publicKey: string }>((resolve, reject) => {
-      void openSignatureRequestPopup({ message: challenge.data.message, appDetails: getAppDetails(), userSession, network: stacksNetwork, stxAddress: walletAddress,
-        onFinish: resolve, onCancel: () => reject(new Error("Sign-in was canceled.")) }).catch(reject);
-    });
+    let signed: { signature: string; publicKey: string };
+    try { signed = await signWalletMessage(challenge.data.message); }
+    catch (error) { throw new Error(walletErrorMessage(error)); }
     if (getConnectedWalletAddress() !== walletAddress) throw new Error("Wallet changed. Please sign in again.");
     const response = await fetch("/api/auth/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(signed) });
     const payload = await response.json();

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { showConnect } from "@stacks/connect";
-import { getAppDetails, getConnectedWalletAddress, userSession } from "@/lib/stacks";
+import { connectWallet, disconnectWallet, getConnectedWalletAddress, walletErrorMessage } from "@/lib/wallet-connection";
 
 type WalletBalances = {
   STX: number | null;
@@ -32,6 +31,8 @@ function formatBalance(amount: number | null, symbol: "STX" | "sBTC" | "USDCx") 
 }
 
 export default function ConnectWalletButton() {
+  const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -53,7 +54,7 @@ export default function ConnectWalletButton() {
   }, []);
 
   useEffect(() => {
-    setConnected(userSession.isUserSignedIn());
+    setConnected(Boolean(getConnectedWalletAddress()));
     setAddress(getConnectedWalletAddress());
   }, []);
 
@@ -110,28 +111,35 @@ export default function ConnectWalletButton() {
     };
   }, [address]);
 
-  const handleConnect = () => {
-    showConnect({
-      appDetails: getAppDetails(),
-      userSession,
-      onFinish: () => {
-        setConnected(true);
-        setAddress(getConnectedWalletAddress());
-        window.dispatchEvent(new Event("stackpay:auth"));
-      },
-    });
+  const handleConnect = async () => {
+    setConnecting(true);
+    setConnectionError(null);
+    try {
+      const nextAddress = await connectWallet();
+      setAddress(nextAddress);
+      setConnected(true);
+    } catch (error) {
+      setConnected(false);
+      setAddress(null);
+      setConnectionError(walletErrorMessage(error));
+    } finally { setConnecting(false); }
   };
 
   const handleDisconnect = async () => {
-    const response = await fetch("/api/auth/session", { method: "DELETE" });
-    if (!response.ok) { window.alert("Could not sign out securely. Please try again."); return; }
-    userSession.signUserOut();
-    window.dispatchEvent(new Event("stackpay:auth"));
-    setConnected(false);
-    setAddress(null);
-    setBalances(null);
-    setProfile(null);
-    setOpen(false);
+    setConnectionError(null);
+    try {
+      const response = await fetch("/api/auth/session", { method: "DELETE" });
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error?.message ?? "Could not sign out securely. Please try again.");
+      }
+      disconnectWallet();
+      setConnected(false);
+      setAddress(null);
+      setBalances(null);
+      setProfile(null);
+      setOpen(false);
+    } catch (error) { setConnectionError(walletErrorMessage(error)); }
   };
 
   async function handleCopy() {
@@ -144,12 +152,16 @@ export default function ConnectWalletButton() {
 
   if (!connected || !address) {
     return (
+      <div className="relative">
       <button
+        disabled={connecting}
         onClick={handleConnect}
         className="button-glow rounded-full border border-white/20 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:scale-[1.02]"
       >
-        Connect Wallet
+        {connecting ? "Connecting…" : "Connect Wallet"}
       </button>
+      {connectionError && <p role="alert" className="absolute right-0 top-full z-50 mt-3 w-72 rounded-xl border border-rose-400/30 bg-[#151010] p-3 text-sm text-rose-200">{connectionError}</p>}
+      </div>
     );
   }
 
@@ -162,6 +174,7 @@ export default function ConnectWalletButton() {
         <span className="inline-flex h-2 w-2 rounded-full bg-emerald-300" />
         <span>{truncateAddress(address)}</span>
       </button>
+      {connectionError && <p role="alert" className="mt-2 max-w-xs text-sm text-rose-300">{connectionError}</p>}
       {open ? (
         <div className="absolute right-0 top-[calc(100%+12px)] w-80 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <div className="rounded-2xl bg-white/5 px-4 py-4">

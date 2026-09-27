@@ -51,3 +51,10 @@ The API tests use mocked database/Stacks responses and real signature cryptograp
 - Historical deployment scoping remains incomplete in this checkout. Confirmation uses the currently configured contracts; it does not establish a deployment registry or repair historical records.
 - Exact arithmetic throughout balances/accounting, trustworthy USD valuation, public receipt/customer-data access review, operational monitoring, backup/restore validation, and independent contract review remain required.
 - Contracts are unchanged. Existing six contract tests cover only a small part of the required security matrix. Mainnet deployment/configuration also needs a separate review of the hardcoded token principals in the processor contract.
+
+Wallet connection troubleshooting:
+- The connector uses explicit Leather/Xverse providers and retains the selected provider for signing and transactions. Existing browser connections must reconnect after this update.
+- Set server-only `SUPABASE_URL` to the hosted project's URL and `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` to that same project's server key. `SUPABASE_URL` overrides the build-time public URL. Restart/redeploy after changing server configuration; never expose these keys as public variables.
+- A localhost Supabase URL requires a running local Supabase instance. Applying SQL to a hosted project does not change the app's database configuration.
+- If the migration was applied manually, verify its tables, functions, and privileges before reconciling CLI migration history; do not blindly rerun the table-creation migration.
+- Automated provider-routing tests do not replace testing both actual browser extensions on HTTPS staging.
