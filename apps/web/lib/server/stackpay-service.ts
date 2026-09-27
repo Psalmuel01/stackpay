@@ -467,7 +467,7 @@ export async function getInvoiceDetailsByOnchainId(invoiceId: string) {
   };
 }
 
-export async function getReceiptDetailsByReceiptId(receiptId: string) {
+export async function getReceiptDetailsByReceiptId(receiptId: string, authenticatedWallet: string | null = null) {
   const receipt = await selectSingle<Row>("receipts", {
     onchain_receipt_id: `eq.${receiptId}`,
   });
@@ -485,6 +485,8 @@ export async function getReceiptDetailsByReceiptId(receiptId: string) {
       })
     : null;
 
+  const ownsReceipt = Boolean(authenticatedWallet && merchant?.wallet_address === authenticatedWallet);
+
   return {
     receipt: {
       id: String(receipt.id),
@@ -499,8 +501,8 @@ export async function getReceiptDetailsByReceiptId(receiptId: string) {
       ? {
           onchain_invoice_id: String(invoice.onchain_invoice_id ?? ""),
           description: String(invoice.description ?? ""),
-          customer_name: String(invoice.customer_name ?? ""),
-          customer_email: String(invoice.customer_email ?? ""),
+          customer_name: ownsReceipt ? String(invoice.customer_name ?? "") : "",
+          customer_email: ownsReceipt ? String(invoice.customer_email ?? "") : "",
           recipient_address: String(invoice.recipient_address ?? ""),
           created_at: String(invoice.created_at ?? ""),
           paid_at: String(invoice.paid_at ?? ""),
@@ -510,9 +512,9 @@ export async function getReceiptDetailsByReceiptId(receiptId: string) {
       ? {
           company_name: String(merchant.company_name ?? ""),
           display_name: String(merchant.display_name ?? ""),
-          email: String(merchant.email ?? ""),
+          email: ownsReceipt ? String(merchant.email ?? "") : "",
           slug: String(merchant.slug ?? ""),
-          settlement_wallet: String(merchant.settlement_wallet ?? ""),
+          settlement_wallet: ownsReceipt ? String(merchant.settlement_wallet ?? "") : "",
         }
       : null,
   };
