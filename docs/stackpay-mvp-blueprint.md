@@ -1,5 +1,7 @@
 # StackPay MVP Blueprint
 
+> Historical planning document, not a statement of shipped features. See [v2 implementation plan](stackpay-v2-implementation.md) for the active roadmap.
+
 ## Current State
 - `apps/web` is a strong visual shell, but most console routes are mock-data pages with no end-to-end flow behind them.
 - `apps/api` was a placeholder and now contains a minimal scaffold, but it still needs persistence, auth, webhook signing, and indexer workers.

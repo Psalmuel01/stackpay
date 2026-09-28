@@ -2,6 +2,14 @@
 
 StackPay is a Bitcoin-native payment gateway on Stacks for `sBTC`, `STX`, and `USDCx`. It combines on-chain invoices and payment routes with a merchant-facing Next.js console, Supabase-backed metadata, hosted checkout pages, receipts, and webhook-driven notifications.
 
+## StackPay v2 work
+
+The direction is developer-first merchant infrastructure for Bitcoin-backed payments on Stacks. Versioned APIs, real API keys, durable merchant webhooks, reconciliation, and a production SDK are planned work, not current capabilities.
+
+- [Architecture and security audit](docs/stackpay-v2-audit.md)
+- [Prioritized P0/P1/P2 issues](docs/stackpay-v2-issues.md)
+- [Milestones and dependencies](docs/stackpay-v2-implementation.md)
+
 ## Current MVP
 
 The current working MVP supports:

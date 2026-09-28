@@ -1,5 +1,7 @@
 # StackPay Supabase MVP
 
+> Historical MVP notes. See [v2 audit](stackpay-v2-audit.md) for current authorization, deployment, and reliability gaps.
+
 ## Architecture
 
 StackPay MVP now uses:
@@ -39,8 +41,8 @@ StackPay MVP now uses:
 
 Schema lives under:
 
-- [supabase/config.toml](/Users/sam/Desktop/Stacks/Stackpay/supabase/config.toml)
-- [supabase/migrations/20250901120000_init_stackpay.sql](/Users/sam/Desktop/Stacks/Stackpay/supabase/migrations/20250901120000_init_stackpay.sql)
+- [supabase/config.toml](../supabase/config.toml)
+- [supabase/migrations/20250901120000_init_stackpay.sql](../supabase/migrations/20250901120000_init_stackpay.sql)
 
 Core tables:
 

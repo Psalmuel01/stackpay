@@ -58,3 +58,12 @@ Wallet connection troubleshooting:
 - A localhost Supabase URL requires a running local Supabase instance. Applying SQL to a hosted project does not change the app's database configuration.
 - If the migration was applied manually, verify its tables, functions, and privileges before reconciling CLI migration history; do not blindly rerun the table-creation migration.
 - Automated provider-routing tests do not replace testing both actual browser extensions on HTTPS staging.
+
+
+## V2 identity follow-up
+
+The v2 audit preserves the nonce/opaque-session model. Challenge verification now rechecks signed origin, network, wallet, and nonce against server context. Auth bodies must be JSON objects. Merchant GET routes derive identity from session without requiring a wallet query; conflicting query identities are still rejected.
+
+Public checkout and confirmation responses now use field allowlists. Customer contact details, arbitrary metadata, draft intents, and private merchant configuration are not returned from these endpoints. Public PDFs omit customer/merchant contact fields; authenticated owning merchants can still download full receipts. Public checkout descriptions and on-chain facts remain public by design; never put private customer details in an on-chain description. A future scoped customer receipt-sharing capability is separate work.
+
+See the [v2 audit](stackpay-v2-audit.md) for unresolved issues, including session audience scoping, durable chain processing, and deployment identity. No new migration is required by this follow-up.
