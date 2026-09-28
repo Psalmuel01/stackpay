@@ -42,12 +42,11 @@ StackPay currently uses:
 - `packages/contracts/stackpay`: Clarity contracts and tests
 - `Stacks wallets`: merchant identity and contract signing
 
-There is still an `apps/api` scaffold in the repo, but the active MVP backend now lives in Next.js route handlers under [`apps/web/app/api`](apps/web/app/api).
+The active backend runs in Next.js route handlers under [`apps/web/app/api`](apps/web/app/api).
 
 ## Monorepo Structure
 
 - [`apps/web`](apps/web): web app, API routes, hosted payment surfaces
-- [`apps/api`](apps/api): legacy API scaffold, not the active MVP backend
 - [`packages/contracts/stackpay`](packages/contracts/stackpay): Clarity contracts and tests
 - [`packages/domain`](packages/domain): shared business metadata
 - [`packages/integrations`](packages/integrations): integration/webhook manifests
@@ -63,7 +62,7 @@ There is still an `apps/api` scaffold in the repo, but the active MVP backend no
 
 1. Merchant completes profile setup.
 2. Merchant creates a standard invoice from [`/create-invoice`](apps/web/app/(app)/create-invoice/page.tsx).
-3. Wallet submits `architecture.create-invoice`.
+3. Wallet submits `arch.create-invoice`.
 4. Chain result returns the on-chain invoice id.
 5. Only then does StackPay store the invoice in Supabase.
 6. Customer pays from the hosted invoice page.
@@ -98,7 +97,7 @@ The universal QR route is a permanent public route for flexible real-world payme
 
 ### On-chain
 
-The `architecture` + `processor` contracts handle:
+The `arch` + `proc` contracts (sources: `architecture.clar` / `processor.clar`) handle:
 
 - canonical invoice ids
 - public link ids
@@ -122,7 +121,7 @@ Supabase stores:
 
 Current payment notifications work like this:
 
-1. Hiro Chainhook watches the deployed StackPay `architecture` contract.
+1. Hiro Chainhook watches the deployed StackPay `arch` contract.
 2. On `invoice-paid`, Hiro posts to [`/api/webhooks/chainhooks`](apps/web/app/api/webhooks/chainhooks/route.ts).
 3. StackPay confirms the invoice/receipt in Supabase.
 4. A notification row is inserted.
@@ -392,3 +391,7 @@ This SOP outlines the steps to create and manage invoices using the StackPay Bit
 ## Security hardening milestone
 
 Merchant access now requires a signed wallet challenge and a server session. Transaction confirmations verify the intended on-chain operation before recording financial state. See [security rollout and remaining blockers](docs/security-milestone.md) before deploying: the wallet-session migration, HTTPS app origin, webhook secret, and token asset names are required. This milestone does not make the app mainnet-ready.
+
+## Reset testnet deployment
+
+The prepared contract names are `arch` and `proc`. See the [reset testnet runbook](docs/testnet-redeployment.md) for verified token addresses, signing order, configuration and post-deployment checks. The contracts are deployed under `ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN`; see [verified deployment evidence](docs/testnet-stackpay-deployment.json). Local configuration changes do not update the hosted app or Chainhook.

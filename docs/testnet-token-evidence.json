@@ -1,0 +1,25 @@
+{
+  "checked_on": "2026-09-28",
+  "api_url": "https://api.testnet.hiro.so",
+  "tokens": [
+    {
+      "contract_id": "SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token",
+      "deployment_tx_id": "0x158530a55b6d96a611dd0389a34410986632ca698330542cbc3fe810a3c39aa0",
+      "block_height": 1162,
+      "source_sha256": "8f0a0edd55fa25613aac50769cf18a671227333850950d4f7f1f913ea0a9c8d1",
+      "canonical": true,
+      "tx_status": "success",
+      "transfer_interface": "SIP-010 transfer(uint, principal, principal, optional(buff 34)) -> response(bool, uint)"
+    },
+    {
+      "contract_id": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx",
+      "deployment_tx_id": "0x59d4188f732bc1f02ebc944b83dcb3404413b12b615e2e5d792652f3dd9aac07",
+      "block_height": 17815,
+      "source_sha256": "2d17648ba17e37aa7b16a6577e9ddbf604188d061d2bc30eda975e6d83bfe3f5",
+      "canonical": true,
+      "tx_status": "success",
+      "transfer_interface": "SIP-010 transfer(uint, principal, principal, optional(buff 34)) -> response(bool, uint)"
+    }
+  ],
+  "note": "Public indexer sources and canonical successful deployment transactions checked with curl. No StackPay deployment has been broadcast."
+}

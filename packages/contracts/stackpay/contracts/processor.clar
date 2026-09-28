@@ -1,7 +1,7 @@
 ;; StackPay Processor
 ;; Compact balance ledger for invoice payments and merchant withdrawals.
 
-(use-trait invoice-trait .architecture.invoice-trait)
+(use-trait invoice-trait .arch.invoice-trait)
 
 (define-trait sip-010-trait (
   (transfer (uint principal principal (optional (buff 34))) (response bool uint))
@@ -75,7 +75,7 @@
 
 (define-private (supported-token-contract (currency (string-ascii 10)))
   (if (is-eq currency CURRENCY_SBTC)
-    (some 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token)
+    (some 'SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token)
     (if (is-eq currency CURRENCY_USDC)
       (some 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx)
       none
@@ -98,7 +98,7 @@
   (let (
       (payer tx-sender)
       (invoice (unwrap!
-        (unwrap! (contract-call? .architecture get-invoice invoice-id) ERR_PAYMENT_FAILED)
+        (unwrap! (contract-call? .arch get-invoice invoice-id) ERR_PAYMENT_FAILED)
         ERR_PAYMENT_FAILED
       ))
       (merchant (get merchant invoice))
@@ -108,7 +108,7 @@
     (asserts! (is-eq amount (get amount invoice)) ERR_INVALID_AMOUNT)
     (try! (stx-transfer? amount payer current-contract))
     (credit-balance merchant CURRENCY_STX amount)
-    (contract-call? .architecture process-payment invoice-id payer amount)
+    (contract-call? .arch process-payment invoice-id payer amount)
   )
 )
 
@@ -120,7 +120,7 @@
   (let (
       (payer tx-sender)
       (invoice (unwrap!
-        (unwrap! (contract-call? .architecture get-invoice invoice-id) ERR_PAYMENT_FAILED)
+        (unwrap! (contract-call? .arch get-invoice invoice-id) ERR_PAYMENT_FAILED)
         ERR_PAYMENT_FAILED
       ))
       (currency (get currency invoice))
@@ -139,7 +139,7 @@
     (asserts! (is-eq amount (get amount invoice)) ERR_INVALID_AMOUNT)
     (try! (contract-call? token transfer amount payer current-contract none))
     (credit-balance merchant currency amount)
-    (contract-call? .architecture process-payment invoice-id payer amount)
+    (contract-call? .arch process-payment invoice-id payer amount)
   )
 )
 

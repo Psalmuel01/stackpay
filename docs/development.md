@@ -1,6 +1,6 @@
 # Development guide
 
-StackPay's active application and API run in `apps/web`. The separate `apps/api` directory is an older scaffold.
+StackPay's application runs in [`apps/web`](../apps/web), with its active backend in [`apps/web/app/api`](../apps/web/app/api). No separate API server is required.
 
 ## Local setup
 
@@ -47,3 +47,9 @@ For UI changes, review the homepage, docs, and merchant entry screen at desktop 
 - Contract source in `packages/contracts/stackpay`: authoritative on-chain behavior.
 
 Keep claims aligned with implemented behavior. Label upcoming features explicitly. Do not publish SDK installation or API-key examples until that integration surface is supported.
+
+### Wallet transaction IDs
+
+Wallet responses may contain a bare 64-character hexadecimal transaction hash. The wallet adapter and server confirmation lookup normalize valid hashes to lowercase with a `0x` prefix; malformed IDs are rejected before chain lookup. Contract, sender, arguments, and successful canonical transaction verification remain required before persisting confirmations.
+
+If confirmation fails after a wallet broadcasts a transaction, check wallet activity before creating another invoice: a failed off-chain confirmation does not mean the transaction failed on-chain.

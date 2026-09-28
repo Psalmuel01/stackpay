@@ -347,7 +347,7 @@ export default function DocsPage() {
                 ]}
               />
               <Link className="primary-button" href="/dashboard">
-                Open workspace <ArrowUpRight size={15} />
+                Launch Console <ArrowUpRight size={15} />
               </Link>
             </Section>
             <Section id="invoices">

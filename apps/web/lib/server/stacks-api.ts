@@ -1,3 +1,4 @@
+import { normalizeTransactionId } from "../transaction-id";
 import { ApiError } from "./api-error";
 import { verifyTransactionPayload, type ExpectedTransaction } from "./transaction-verification";
 import { stacksNetworks } from "@stackpay/config";
@@ -15,7 +16,7 @@ function getProcessorContractId() {
 export const tokenContracts = {
   sBTC:
     process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ??
-    "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token",
+    "SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token",
   USDCx:
     process.env.NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID ??
     "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx",
@@ -105,10 +106,11 @@ function extractBalanceAmount(value: any): string | number | null {
 function findTokenBalance(
   fungibleTokens: Record<string, { balance?: string | number }>,
   contractId: string,
+  assetName: string,
   decimals: number
 ) {
-  const key = Object.keys(fungibleTokens).find((assetId) => assetId.startsWith(`${contractId}::`));
-  if (!key) {
+  const key = `${contractId}::${assetName}`;
+  if (!Object.prototype.hasOwnProperty.call(fungibleTokens, key)) {
     return 0;
   }
 
@@ -129,8 +131,8 @@ export async function getWalletBalances(address: string): Promise<WalletBalances
 
   return {
     STX: atomicToAmount(payload.stx?.balance, 6),
-    sBTC: findTokenBalance(fungibleTokens, tokenContracts.sBTC, 8),
-    USDCx: findTokenBalance(fungibleTokens, tokenContracts.USDCx, 6),
+    sBTC: findTokenBalance(fungibleTokens, tokenContracts.sBTC, process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "sbtc-token", 8),
+    USDCx: findTokenBalance(fungibleTokens, tokenContracts.USDCx, process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "usdcx-token", 6),
   };
 }
 
@@ -189,8 +191,9 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
 }
 
 export async function syncTransaction(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
-  if (typeof txId !== "string" || !/^0x[0-9a-f]{64}$/i.test(txId)) throw new ApiError(400, "invalid_tx_id", "A valid transaction id is required.");
-  txId = txId.toLowerCase();
+  const normalizedTxId = normalizeTransactionId(txId);
+  if (!normalizedTxId) throw new ApiError(400, "invalid_tx_id", "A valid transaction id is required.");
+  txId = normalizedTxId;
   const response = await fetch(`${getStacksApiUrl()}/extended/v1/tx/${txId}`, {
     cache: "no-store",
   });

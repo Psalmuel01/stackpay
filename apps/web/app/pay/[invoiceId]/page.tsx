@@ -52,15 +52,15 @@ function getEffectiveStatus(invoice: RemoteInvoice | null, nowMs: number) {
 function getProcessorContractId() {
   const architectureContractId =
     process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ??
-    "ST13J1C3K69H3EDG2SVJ21SQ6GXD6A6F862QCK16D.architecture";
+    "ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.arch";
   const [address] = architectureContractId.split(".");
-  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? `${address}.processor`;
+  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? `${address}.proc`;
 }
 
 
 function getTokenContractId(currency: string) {
   if (currency === "sBTC") {
-    return process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ?? "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token";
+    return process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ?? "SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token";
   }
 
   if (currency === "USDCx") {

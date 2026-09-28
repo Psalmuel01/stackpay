@@ -7,20 +7,20 @@ const deployer = simnet.deployer;
 const merchant = accounts.get("wallet_1")!;
 const payer = accounts.get("wallet_2")!;
 const recipient = accounts.get("wallet_3")!;
-const processorPrincipal = `${deployer}.processor`;
+const processorPrincipal = `${deployer}.proc`;
 
 function getCurrentTime(sender: string) {
-  const now = simnet.callReadOnlyFn("architecture", "get-current-time", [], sender);
+  const now = simnet.callReadOnlyFn("arch", "get-current-time", [], sender);
   expect(now.result).toBeOk(Cl.uint(cvToValue(now.result.value) as bigint));
   return cvToValue(now.result.value) as bigint;
 }
 
-describe("processor", () => {
+describe("proc", () => {
   it("processes STX payments and marks invoices paid", () => {
     const setup = simnet.mineBlock([
-      tx.callPublicFn("architecture", "set-processor", [Cl.principal(processorPrincipal)], deployer),
+      tx.callPublicFn("arch", "set-processor", [Cl.principal(processorPrincipal)], deployer),
       tx.callPublicFn(
-        "architecture",
+        "arch",
         "create-invoice",
         [
           Cl.principal(recipient),
@@ -38,7 +38,7 @@ describe("processor", () => {
     const createdAt = getCurrentTime(merchant);
 
     const payment = simnet.callPublicFn(
-      "processor",
+      "proc",
       "process-stx-payment",
       [stringAsciiCV(invoiceId), uintCV(1000)],
       payer
@@ -48,7 +48,7 @@ describe("processor", () => {
 
     const paidAt = getCurrentTime(merchant);
     const invoice = simnet.callReadOnlyFn(
-      "architecture",
+      "arch",
       "get-invoice",
       [stringAsciiCV(invoiceId)],
       merchant
@@ -71,7 +71,7 @@ describe("processor", () => {
     );
 
     const balance = simnet.callReadOnlyFn(
-      "processor",
+      "proc",
       "get-balance",
       [Cl.principal(merchant), stringAsciiCV("STX")],
       merchant
@@ -81,9 +81,9 @@ describe("processor", () => {
 
   it("withdraws the full merchant STX balance to a chosen settlement wallet", () => {
     const setup = simnet.mineBlock([
-      tx.callPublicFn("architecture", "set-processor", [Cl.principal(processorPrincipal)], deployer),
+      tx.callPublicFn("arch", "set-processor", [Cl.principal(processorPrincipal)], deployer),
       tx.callPublicFn(
-        "architecture",
+        "arch",
         "create-invoice",
         [
           Cl.principal(recipient),
@@ -100,7 +100,7 @@ describe("processor", () => {
 
     simnet.mineBlock([
       tx.callPublicFn(
-        "processor",
+        "proc",
         "process-stx-payment",
         [stringAsciiCV(invoiceId), uintCV(1000)],
         payer
@@ -108,7 +108,7 @@ describe("processor", () => {
     ]);
 
     const withdrawn = simnet.callPublicFn(
-      "processor",
+      "proc",
       "withdraw-stx-to",
       [uintCV(1000), Cl.principal(recipient)],
       merchant
@@ -121,7 +121,7 @@ describe("processor", () => {
     );
 
     const balance = simnet.callReadOnlyFn(
-      "processor",
+      "proc",
       "get-balance",
       [Cl.principal(merchant), stringAsciiCV("STX")],
       merchant

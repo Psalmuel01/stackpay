@@ -1,0 +1,28 @@
+{
+  "verified_on": "2026-09-28",
+  "network": "testnet",
+  "api_url": "https://api.testnet.hiro.so",
+  "contracts": [
+    {
+      "contract_id": "ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.arch",
+      "tx_id": "0x292e5a51123391e8575583bf8720c14b267acfc6e88fabe8ed83c100ee291994",
+      "canonical": true,
+      "status": "success",
+      "source_matches": true,
+      "source_sha256": "302831018e98604ab1be260a8e9e743f7a6980f06b4afc57416459155352d1de",
+      "local_source_sha256": "302831018e98604ab1be260a8e9e743f7a6980f06b4afc57416459155352d1de",
+      "block_height": 564586
+    },
+    {
+      "contract_id": "ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.proc",
+      "tx_id": "0xb109323684182482e8fbb2de841b482b5405d6b96138102cb707e9e44859c306",
+      "canonical": true,
+      "status": "success",
+      "source_matches": true,
+      "source_sha256": "ce1f02a2cf19274c0a891f32465aa7072551205a163a779607fae49995a9117f",
+      "local_source_sha256": "ce1f02a2cf19274c0a891f32465aa7072551205a163a779607fae49995a9117f",
+      "block_height": 564586
+    }
+  ],
+  "scope": "Canonical successful deployment transactions and exact source comparison; not an end-to-end payment test or admin-state audit."
+}

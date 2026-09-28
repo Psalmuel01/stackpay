@@ -5,15 +5,15 @@ authors = []
 telemetry = true
 cache_dir = './.cache'
 requirements = []
-[contracts.architecture]
+[contracts.arch]
 path = 'contracts/architecture.clar'
 clarity_version = 4
-epoch = 'latest'
+epoch = '3.3'
 
-[contracts.processor]
+[contracts.proc]
 path = 'contracts/processor.clar'
 clarity_version = 4
-epoch = 'latest'
+epoch = '3.3'
 [repl.analysis]
 passes = ['check_checker']
 

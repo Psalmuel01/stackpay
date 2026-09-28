@@ -1,0 +1,24 @@
+id: 0
+name: Testnet deployment
+network: testnet
+stacks-node: https://api.testnet.hiro.so
+bitcoin-node: http://blockstack:blockstacksystem@bitcoind.testnet.stacks.co:18332
+plan:
+  batches:
+  - id: 0
+    transactions:
+    - transaction-type: contract-publish
+      contract-name: arch
+      expected-sender: ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN
+      cost: 169130
+      path: contracts/architecture.clar
+      anchor-block-only: true
+      clarity-version: 4
+    - transaction-type: contract-publish
+      contract-name: proc
+      expected-sender: ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN
+      cost: 60740
+      path: contracts/processor.clar
+      anchor-block-only: true
+      clarity-version: 4
+    epoch: '3.3'

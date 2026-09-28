@@ -3,5 +3,4 @@
 .env*.local
 .next
 node_modules
-packages/contracts/stackpay_alt
 .DS_Store

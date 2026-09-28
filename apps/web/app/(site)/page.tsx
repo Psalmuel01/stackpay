@@ -69,7 +69,7 @@ export default function HomePage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/dashboard" className="primary-button">
-                  Open workspace <ArrowUpRight size={17} />
+                  Launch Console <ArrowUpRight size={17} />
                 </Link>
                 <Link href="/docs#quickstart" className="secondary-button">
                   Read the guide <ArrowRight size={16} />

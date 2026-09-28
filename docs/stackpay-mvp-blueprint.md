@@ -4,7 +4,7 @@
 
 ## Current State
 - `apps/web` is a strong visual shell, but most console routes are mock-data pages with no end-to-end flow behind them.
-- `apps/api` was a placeholder and now contains a minimal scaffold, but it still needs persistence, auth, webhook signing, and indexer workers.
+- At the time of this plan, a separate mock API scaffold lacked persistence, authentication, webhook signing, and indexer workers. That scaffold has since been removed; the active backend is [`apps/web/app/api`](../apps/web/app/api).
 - `packages/contracts/stackpay` currently supports merchant registration, invoice creation, payment processing, receipts, and direct balance withdrawals.
 - Shared business models, integration metadata, SDK structure, and config boundaries were missing and are now scaffolded under `packages/*`.
 

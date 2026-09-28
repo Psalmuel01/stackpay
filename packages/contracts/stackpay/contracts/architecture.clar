@@ -116,7 +116,7 @@
 
 (define-private (authorized-processor-caller)
   (or
-    (is-eq contract-caller .processor)
+    (is-eq contract-caller .proc)
     (match (var-get processor)
       configured-processor (is-eq contract-caller configured-processor)
       false

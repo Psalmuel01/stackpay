@@ -12,10 +12,10 @@ function unwrapSomeOk(result: any) {
   return cvToValue(result.result.value.value) as Record<string, any>;
 }
 
-describe("architecture", () => {
+describe("arch", () => {
   it("creates standard invoices directly", () => {
     const created = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-invoice",
       [
         Cl.principal(recipient),
@@ -31,7 +31,7 @@ describe("architecture", () => {
     expect(created.result).toBeOk(Cl.stringAscii(invoiceId));
 
     const invoiceView = unwrapSomeOk(
-      simnet.callReadOnlyFn("architecture", "get-invoice-view", [stringAsciiCV(invoiceId)], merchant)
+      simnet.callReadOnlyFn("arch", "get-invoice-view", [stringAsciiCV(invoiceId)], merchant)
     );
     expect(invoiceView.merchant.value).toBe(merchant);
     expect(invoiceView.recipient.value).toBe(recipient);
@@ -43,7 +43,7 @@ describe("architecture", () => {
 
   it("creates public invoices from multipay links", () => {
     const linkCreated = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-multipay-link",
       [
         Cl.principal(recipient),
@@ -68,7 +68,7 @@ describe("architecture", () => {
     expect(linkCreated.result).toBeOk(Cl.stringAscii(linkId));
 
     const invoiceCreated = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-public-invoice-from-link",
       [
         stringAsciiCV(linkId),
@@ -84,7 +84,7 @@ describe("architecture", () => {
     expect(invoiceCreated.result).toBeOk(Cl.stringAscii(invoiceId));
 
     const invoice = unwrapSomeOk(
-      simnet.callReadOnlyFn("architecture", "get-invoice", [stringAsciiCV(invoiceId)], merchant)
+      simnet.callReadOnlyFn("arch", "get-invoice", [stringAsciiCV(invoiceId)], merchant)
     );
     expect(invoice.merchant.value).toBe(merchant);
     expect(invoice.recipient.value).toBe(recipient);
@@ -96,7 +96,7 @@ describe("architecture", () => {
 
   it("creates public invoices from multipay suggested amounts", () => {
     const linkCreated = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-multipay-link",
       [
         Cl.principal(recipient),
@@ -121,7 +121,7 @@ describe("architecture", () => {
     expect(linkCreated.result).toBeOk(Cl.stringAscii(linkId));
 
     const invoiceCreated = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-public-invoice-from-link",
       [
         stringAsciiCV(linkId),
@@ -137,7 +137,7 @@ describe("architecture", () => {
     expect(invoiceCreated.result).toBeOk(Cl.stringAscii(invoiceId));
 
     const invoice = unwrapSomeOk(
-      simnet.callReadOnlyFn("architecture", "get-invoice", [stringAsciiCV(invoiceId)], merchant)
+      simnet.callReadOnlyFn("arch", "get-invoice", [stringAsciiCV(invoiceId)], merchant)
     );
     expect(invoice.amount.value).toBe("900");
     expect(invoice.description.value).toBe("Merchant Book");
@@ -145,7 +145,7 @@ describe("architecture", () => {
 
   it("marks invoice views expired when time has elapsed", () => {
     const created = simnet.callPublicFn(
-      "architecture",
+      "arch",
       "create-invoice",
       [
         Cl.principal(recipient),
@@ -161,7 +161,7 @@ describe("architecture", () => {
     simnet.mineEmptyBlocks(1);
 
     const invoiceView = unwrapSomeOk(
-      simnet.callReadOnlyFn("architecture", "get-invoice-view", [stringAsciiCV(invoiceId)], merchant)
+      simnet.callReadOnlyFn("arch", "get-invoice-view", [stringAsciiCV(invoiceId)], merchant)
     );
     expect(invoiceView.status.value).toBe("2");
     expect(invoiceView.description.value).toBe("Flash sale");

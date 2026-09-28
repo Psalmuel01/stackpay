@@ -58,17 +58,18 @@ genesis:
   - signers
   - signers-voting
   - costs-4
+  - pox-5
 plan:
   batches:
   - id: 0
     transactions:
     - transaction-type: emulated-contract-publish
-      contract-name: architecture
+      contract-name: arch
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/architecture.clar
       clarity-version: 4
     - transaction-type: emulated-contract-publish
-      contract-name: processor
+      contract-name: proc
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/processor.clar
       clarity-version: 4

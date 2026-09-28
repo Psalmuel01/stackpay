@@ -32,7 +32,7 @@ export default function SiteHeader() {
             Docs
           </Link>
           <Link href="/dashboard" className="secondary-button">
-            Workspace <ArrowUpRight size={15} className="hidden sm:block" />
+            Console <ArrowUpRight size={15} className="hidden sm:block" />
           </Link>
         </nav>
       </div>

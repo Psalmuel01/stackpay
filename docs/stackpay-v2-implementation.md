@@ -67,3 +67,7 @@ Recruit 3–5 merchants through separately authorized outreach. Observe integrat
 ## Release gate
 
 Do not call v2 production-ready until cryptographic identity, revocable keys, versioned API, idempotent writes, explicit states, duplicate safety, deterministic rollback, signed durable webhooks, visible failures, real SDK/API integration, no static fiat metrics, real backend integration tests, reconciliation, merchant isolation, and three successful real merchant flows are demonstrated. A green mocked suite or build alone cannot satisfy this gate.
+
+## Milestone 2 progress — deployment foundation
+
+The [deployment registry design and rollout](stackpay-deployment-registry.md) records the first additive slice: an empty immutable registry migration, a read-only public evidence checker, and PostgreSQL/schema tests. Live deployment evidence is still unresolved. Runtime record bindings, deployment-scoped uniqueness, historical checkout/withdrawal routing, and durable Chainhook projection remain outstanding; this foundation does not close the milestone or its release gate.

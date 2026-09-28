@@ -10,7 +10,7 @@ Audit date: 2026-09-27. Repository baseline: `d182b23` (following wallet hardeni
 4. **Deployment isolation is not implemented end to end in this checkout.** Invoice/receipt IDs are globally unique without network/contract scope. Existing transaction verification uses current configuration, so upgrades can orphan old links and collide across deployments. Earlier conversational claims of complete deployment scoping do not match this source.
 5. **The desired API is blocked by a signing decision.** `create-invoice` takes merchant identity from `tx-sender`. A server API key cannot manufacture the merchant signature. A v1 API must expose a draft/intent workflow initially, or a separately reviewed contract authorization/payment-request design must precede one-call payable invoice creation.
 6. **The processor has limited demonstrated differentiation.** It accumulates per-merchant balances and permits manual withdrawal to another principal. There is no batching, split routing, fee abstraction, conversion, or scheduled payout in these contracts.
-7. **Developer features are scaffolding.** `packages/sdk` calls the mock `apps/api` at port 4000, not the real Next.js API. API keys, outgoing signed delivery, idempotency, reconciliation, and a stable external API are absent.
+7. **Developer features are scaffolding.** At the audit baseline, `packages/sdk` targeted the separate mock API at port 4000, not the real Next.js API. That server has since been removed; the SDK still needs integration with the versioned API. API keys, outgoing signed delivery, idempotency, reconciliation, and a stable external API are absent.
 8. **Accounting is not production-safe.** Static USD rates remain in the service; amounts/balances repeatedly pass through JavaScript numbers. Missing/failed read-only balance results can become zero.
 
 ## Repository map and active architecture
@@ -27,7 +27,7 @@ Audit date: 2026-09-27. Repository baseline: `d182b23` (following wallet hardeni
 | `apps/web/lib/wallet-connection.ts`, `stacks.ts`, `wallet-sign-in.ts` | Explicit Leather/Xverse selection, message signing, transactions and exact Deny post-conditions. |
 | `packages/contracts/stackpay` | Two Clarity 4 contracts, simnet deployment manifest, six tests at audit baseline. |
 | `supabase/migrations` | Four checked-in migrations; service-role-only application access. |
-| `apps/api` | Independently runnable unauthenticated in-memory mock server. Root production Dockerfile does not deploy it. Its own Dockerfile still exists. |
+| Legacy mock API (removed after audit) | At the audit baseline: independently runnable unauthenticated in-memory server, excluded from the root production Dockerfile. The active backend is `apps/web/app/api`. |
 | `packages/sdk` | Private JS scaffold with weak declaration types; no actual key verification on its mock target. |
 | `packages/domain`, `integrations`, `config`, `ui` | Shared metadata/configuration. Some integration descriptions and navigation metadata are stale. |
 | `DemoProvider.tsx` | Still mounted globally; simulated keys, subscriptions, explorer data. Shared formatting utilities are mixed with demo state, so removal requires first separating those utilities. |

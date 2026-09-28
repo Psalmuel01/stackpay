@@ -1,3 +1,4 @@
+import { normalizeTransactionId } from "./transaction-id";
 import { intentValue } from "./contract-values";
 import { paymentPostConditions } from "./payment-postconditions";
 import { request } from "@stacks/connect";
@@ -38,7 +39,7 @@ export async function submitContractIntent(
   const sender = getConnectedWalletAddress();
   if (!sender) throw new Error("Connect a wallet before submitting a transaction.");
   const tokenAssets: Record<string, string> = {
-    [process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ?? "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token"]: process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "",
+    [process.env.NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID ?? "SN3VMHXEN64ZZF71JQ5VESXDWTR301XTTXGF4J8F1.sbtc-token"]: process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "",
     [process.env.NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID ?? "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx"]: process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "",
   };
 
@@ -52,8 +53,9 @@ export async function submitContractIntent(
       functionName: intent.functionName,
       functionArgs: intent.arguments.map(intentValue),
     });
-    if (!result.txid) throw new Error("The wallet did not return a broadcast transaction id.");
-    callbacks.onFinish?.({ txId: result.txid });
+    const txId = normalizeTransactionId(result.txid);
+    if (!txId) throw new Error("The wallet did not return a valid broadcast transaction id. Check wallet activity before retrying.");
+    callbacks.onFinish?.({ txId });
   } catch (error) {
     const code = (error as { code?: number } | null)?.code;
     if (code === -31001 || code === -32000 || code === 4001) { callbacks.onCancel?.(); return; }

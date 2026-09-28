@@ -27,11 +27,11 @@ export type ContractIntent = {
 };
 
 function getArchitectureContractId() {
-  return process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "ST000000000000000000002AMW42H.architecture";
+  return process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "ST000000000000000000002AMW42H.arch";
 }
 
 function getProcessorContractId() {
-  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "ST000000000000000000002AMW42H.processor";
+  return process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "ST000000000000000000002AMW42H.proc";
 }
 
 function getNetwork() {
