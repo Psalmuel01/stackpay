@@ -130,12 +130,20 @@ export default function NotificationsButton() {
       }
     }
 
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && open) {
+        setOpen(false);
+        ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      }
+    }
     if (open) {
+      document.addEventListener("keydown", handleEscape);
       document.addEventListener("mousedown", handlePointerDown);
     }
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [open]);
 
@@ -174,6 +182,7 @@ export default function NotificationsButton() {
         onClick={() => setOpen((value) => !value)}
         className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/75 transition hover:border-white/20 hover:text-white"
         aria-label="Notifications"
+        aria-expanded={open}
       >
         <Bell size={16} />
         {unreadCount ? (

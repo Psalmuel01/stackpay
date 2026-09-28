@@ -49,8 +49,18 @@ export default function ConnectWalletButton() {
       }
     }
 
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && ref.current?.contains(document.activeElement)) {
+        setOpen(false);
+        ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   useEffect(() => {
