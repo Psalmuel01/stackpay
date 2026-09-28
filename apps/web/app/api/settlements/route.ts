@@ -8,15 +8,14 @@ import {
 } from "@/lib/server/stackpay-service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
+// Session-scoped responses must never be prerendered or shared across users.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
   }
 
-  const walletAddress = request.nextUrl.searchParams.get("walletAddress");
-  if (!walletAddress) {
-    return jsonError(400, "invalid_request", "walletAddress is required.");
-  }
 
   try {
     const authenticatedWallet = await requireMerchant(request);

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { publicKeyToAddress, validateStacksAddress } from "@stacks/transactions";
 import { verifyMessageSignatureRsv } from "@stacks/encryption";
+import { readJsonObject } from "./request-body";
 import { ApiError } from "./api-error";
 import { selectRows, supabaseRequest } from "./supabase-admin";
 
@@ -46,7 +47,10 @@ export async function getSessionWallet(request: Request) {
   const token = cookieValue(request, sessionCookie);
   if (!/^[0-9a-f]{64}$/.test(token)) return null;
   const rows = await selectRows("wallet_sessions", { token_hash: `eq.${hashToken(token)}`, expires_at: `gt.${new Date().toISOString()}`, select: "wallet_address", limit: 1 });
-  return rows?.[0]?.wallet_address as string | undefined ?? null;
+  const wallet = rows?.[0]?.wallet_address;
+  if (!wallet) return null;
+  try { validateWallet(wallet); } catch { return null; }
+  return wallet;
 }
 export async function requireMerchant(request: Request) {
   if (request.method !== "GET") requireSameOrigin(request);
@@ -56,8 +60,7 @@ export async function requireMerchant(request: Request) {
   let supplied: unknown;
   if (request.method === "GET") supplied = new URL(request.url).searchParams.get("walletAddress");
   else {
-    const payload = await request.clone().json();
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new ApiError(400, "invalid_request", "A JSON object is required.");
+    const payload = await readJsonObject(request.clone());
     supplied = payload.walletAddress;
   }
   if (supplied != null && supplied !== wallet) throw new ApiError(403, "wallet_mismatch", "This wallet does not own the session.");
@@ -66,4 +69,19 @@ export async function requireMerchant(request: Request) {
 export async function revokeSession(request: Request) {
   const token = cookieValue(request, sessionCookie);
   if (/^[0-9a-f]{64}$/.test(token)) await supabaseRequest("wallet_sessions", { method: "DELETE", query: { token_hash: `eq.${hashToken(token)}` } });
+}
+
+
+export function walletChallengeMessage(request: Request, wallet: string, nonce: string, issuedAt = new Date().toISOString()) {
+  return ["Sign in to StackPay", `Origin: ${appOrigin(request)}`, `Wallet: ${wallet}`,
+    `Network: ${process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet"}`, `Nonce: ${nonce}`,
+    `Issued at: ${issuedAt}`, "Expires in 5 minutes. This signature does not authorize a transaction."].join("\n");
+}
+
+/** The stored signature must authorize this audience/network and this nonce. */
+export function challengeMatchesContext(request: Request, wallet: string, nonce: string, message: unknown) {
+  if (typeof message !== "string") return false;
+  const issuedAt = message.split("\n")[5]?.replace(/^Issued at: /, "");
+  if (!issuedAt || !Number.isFinite(Date.parse(issuedAt))) return false;
+  return message === walletChallengeMessage(request, wallet, nonce, issuedAt);
 }

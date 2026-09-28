@@ -1,5 +1,8 @@
 import { jsonOk, apiFailure } from "@/lib/server/http";
 import { challengeCookie, getSessionWallet, requireSameOrigin, revokeSession, sessionCookie, setAuthCookie } from "@/lib/server/wallet-auth";
+// Session-scoped responses must never be prerendered or shared across users.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const response = jsonOk({ walletAddress: await getSessionWallet(request) });

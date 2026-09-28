@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Cl, cvToHex, privateKeyToPublic, publicKeyToAddress, signMessageHashRsv } from "@stacks/transactions";
+import { walletChallengeMessage } from "../lib/server/wallet-auth";
 import { hashMessage } from "@stacks/encryption";
 import { NextRequest } from "next/server";
 const db = vi.hoisted(() => ({ selectRows: vi.fn(), supabaseRequest: vi.fn() }));
@@ -90,6 +91,29 @@ describe("confirmation routes", () => {
   });
 });
 describe("authentication lifecycle", () => {
+
+  it.each(["Origin: https://other.test", "Network: mainnet", "Nonce: wrong"])("rejects a valid signature with changed context: %s", async replacement => {
+    const original = walletChallengeMessage(request("/api/auth/verify", {}), wallet, "b".repeat(64));
+    const field = replacement.split(":")[0];
+    const message = original.split("\n").map(line => line.startsWith(field + ":") ? replacement : line).join("\n");
+    db.selectRows.mockResolvedValue([{ wallet_address: wallet, message }]);
+    const signature = signMessageHashRsv({ privateKey, messageHash: Buffer.from(hashMessage(message)).toString("hex") });
+    const response = await verify(request("/api/auth/verify", { signature, publicKey }, { cookie: "stackpay-challenge=" + "b".repeat(64) }));
+    expect(response.status).toBe(401);
+    expect(db.supabaseRequest).not.toHaveBeenCalled();
+  });
+  it.each([null, [], "wallet", 7])("rejects non-object auth bodies", async body => {
+    expect((await issue(request("/api/auth/challenge", body))).status).toBe(400);
+    expect((await verify(request("/api/auth/verify", body))).status).toBe(400);
+    expect(db.supabaseRequest).not.toHaveBeenCalled();
+  });
+  it("reads the profile from session identity without a wallet query", async () => {
+    service.getMerchantProfileByWallet.mockResolvedValue({ company_name: "Merchant" });
+    const response = await getProfile(new NextRequest(origin + "/api/merchant/profile", { headers: { cookie } }));
+    expect(response.status).toBe(200);
+    expect(service.getMerchantProfileByWallet).toHaveBeenCalledWith(wallet);
+  });
+
   it("issues a browser-bound challenge without exposing it in a readable cookie", async () => {
     db.supabaseRequest.mockResolvedValue(true);
     const response = await issue(request("/api/auth/challenge", { walletAddress: wallet }));
@@ -108,7 +132,7 @@ describe("authentication lifecycle", () => {
     expect(db.supabaseRequest).not.toHaveBeenCalled();
   });
   it("creates a session once and refuses a replay that loses atomic consumption", async () => {
-    const message = "StackPay login";
+    const message = walletChallengeMessage(request("/api/auth/verify", {}), wallet, "b".repeat(64));
     db.selectRows.mockResolvedValue([{ wallet_address: wallet, message }]);
     const signature = signMessageHashRsv({ privateKey, messageHash: Buffer.from(hashMessage(message)).toString("hex") });
     db.supabaseRequest.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
