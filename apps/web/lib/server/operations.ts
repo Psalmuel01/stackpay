@@ -1,5 +1,6 @@
 import { stacksNetworks } from "@stackpay/config";
 import { callRpc, isSupabaseConfigured } from "./supabase-admin";
+import { deploymentStatus } from "./deployments";
 
 /**
  * Operational health. Liveness is cheap; readiness probes dependencies; metrics and alerts come
@@ -67,7 +68,7 @@ async function probe<T>(fn: () => Promise<T>) {
 export async function readiness() {
   const network = process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
   const apiUrl = process.env.STACKPAY_STACKS_API_URL ?? stacksNetworks[network]?.apiUrl ?? stacksNetworks.testnet.apiUrl;
-  const [database, chain] = await Promise.all([
+  const [database, chain, deployment] = await Promise.all([
     probe(async () => {
       if (!isSupabaseConfigured()) throw new Error("NotConfigured");
       return getMetrics();
@@ -78,13 +79,20 @@ export async function readiness() {
       const info = await response.json();
       return { stacks_tip_height: info.stacks_tip_height ?? null };
     }),
+    // New records are bound to the active deployment; accepting payments on any other pair would leave them unbound.
+    probe(async () => {
+      const status = await deploymentStatus();
+      if (!status.ok) throw Object.assign(new Error(status.reason), { name: status.reason === "inactive" ? "DeploymentInactive" : "DeploymentUnregistered" });
+      return status;
+    }),
   ]);
   const metrics = database.ok ? (database.detail as Metrics) : null;
   return {
-    status: database.ok && chain.ok ? "ready" : "degraded",
+    status: database.ok && chain.ok && deployment.ok ? "ready" : "degraded",
     checks: {
       database: { ok: database.ok, latency_ms: database.latency_ms, ...(database.ok ? {} : { error: database.error }) },
       stacks_api: { ok: chain.ok, latency_ms: chain.latency_ms, ...(chain.ok ? { tip_height: (chain.detail as { stacks_tip_height: number | null }).stacks_tip_height } : { error: chain.error }) },
+      deployment: { ok: deployment.ok, ...(deployment.ok ? { id: (deployment.detail as { deployment_id: string }).deployment_id } : { error: deployment.error }) },
       chainhook: { last_delivery_at: metrics?.heartbeats?.chainhook?.last_seen_at ?? null, pending_events: metrics?.chain_events?.pending ?? null, dead_events: metrics?.chain_events?.dead ?? null },
       jobs: { last_run_at: metrics?.heartbeats?.jobs?.last_seen_at ?? null },
     },

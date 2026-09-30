@@ -61,3 +61,35 @@ The user confirmed the testnet reset. Local configuration now targets the planne
 ## Deployment verified
 
 On September 28 the user deployed `.arch` and `.proc` under `ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN`. Both transactions are canonical/successful and both source files match exactly. See [evidence](testnet-stackpay-deployment.json). The old-address availability blocker is resolved for this new pair; hosted configuration, registry insertion, legacy binding and live smoke tests remain separate outstanding work. No hosted database writes were performed.
+
+## Runtime binding — 2026-09-30
+
+Migration `20261006090000_deployment_binding.sql` completes steps 3 and 4 of the rollout above and part of step 5:
+
+- **Registered:** the verified testnet `.arch`/`.proc` pair, with its evidence (deploy transactions, source hashes). Registering does not activate it.
+- **Activation:** an append-only `deployment_activations` history. `activate_contract_deployment(network, architecture, processor, note)` makes a registered pair the one new records bind to. Activating the active pair is a no-op. To activate the testnet pair after applying migrations, run as the service role:
+
+  ```sql
+  select public.activate_contract_deployment('testnet',
+    'ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.arch',
+    'ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.proc',
+    'Testnet go-live');
+  ```
+- **Bindings:** `deployment_id` is added to invoices, payment links, receipts, settlement runs and chain events. It is stamped by trigger:
+  - new invoices and links are stamped when they reach the chain (a draft is stamped when it is attached);
+  - settlement runs are stamped on insert;
+  - chain events bind to the deployment that owns the emitting contract;
+  - receipts inherit their invoice's deployment, and cross-deployment receipts are rejected.
+
+  A binding can never change once set. Legacy rows stay `NULL`; nothing is inferred from configuration.
+- **Routing by stored identity:**
+  - checkout pays, and the server verifies payments, through the invoice's own deployment's processor (falling back to configuration for unbound legacy invoices);
+  - the Chainhook receiver accepts events from every registered contract on the network, so in-flight invoices on a previous pair still project after an upgrade.
+- **Readiness:** `/api/health/ready` reports `deployment: false`, and the service is degraded, unless the configured contracts are the active registered deployment.
+
+**Still deliberately open:**
+- Deployment-scoped uniqueness (step 5): keep global on-chain uniqueness while a database has one active deployment. Switch only when a second pair is registered, together with scoped public references.
+- The reviewed legacy backfill manifest (step 2).
+- Withdrawals from a previous processor, once one exists.
+
+Tests: `supabase/tests/deployment_binding.sql` and `apps/web/tests/operations.test.ts` ("deployment identity").

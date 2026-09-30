@@ -1,3 +1,4 @@
+import { processorForDeployment } from "./deployments";
 import { ApiError } from "./api-error";
 import { decimalToAtomic, sumDecimalAmounts, toAtomicAmount } from "../amounts";
 import {
@@ -432,6 +433,7 @@ export async function getInvoiceDetailsByOnchainId(invoiceId: string) {
 
   return {
     ...invoice,
+    processor_contract_id: invoice.deployment_id ? await processorForDeployment(String(invoice.deployment_id)) : null,
     merchant: merchant
       ? {
           display_name: merchant.display_name ?? "",
@@ -1082,7 +1084,8 @@ export async function verifyInvoicePaymentTransaction(invoiceId: string, txId: s
   ];
   if (currency !== "STX") args.push({ type: "principal", value: tokenContracts[currency] });
   return syncTransaction(txId, {
-    contractId: process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "",
+    // Pay through the invoice's own deployment, which may predate a contract upgrade.
+    contractId: await processorForDeployment(invoice.deployment_id as string | null),
     functionName: currency === "STX" ? "process-stx-payment" : "process-sip-010-payment",
     network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet", arguments: args,
   });

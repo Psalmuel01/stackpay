@@ -24,6 +24,8 @@ type RemoteInvoice = {
   /** Null while an API invoice is still a draft (created on-chain at checkout). */
   onchain_invoice_id: string | null;
   status: "draft" | "pending" | "paid" | "expired" | "canceled" | "refunded";
+  /** Processor of the deployment this invoice was created on; null for legacy/unbound invoices. */
+  processor_contract_id?: string | null;
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
@@ -262,7 +264,7 @@ export default function HostedPaymentPage({
     const contractIntent: StackPayContractIntent =
       invoice.currency === "STX"
         ? {
-          contractId: getProcessorContractId(),
+          contractId: invoice.processor_contract_id ?? getProcessorContractId(),
           contractName: "processor",
           functionName: "process-stx-payment",
           network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet",
@@ -273,7 +275,7 @@ export default function HostedPaymentPage({
           notes: [],
         }
         : {
-          contractId: getProcessorContractId(),
+          contractId: invoice.processor_contract_id ?? getProcessorContractId(),
           contractName: "processor",
           functionName: "process-sip-010-payment",
           network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet",

@@ -4,6 +4,7 @@ import { enqueueChainEvents, parseChainhookPayload, processChainEventInbox } fro
 import { deliverDueWebhooks } from "@/lib/server/webhooks/service";
 import { callRpc, isSupabaseConfigured } from "@/lib/server/supabase-admin";
 import { logEvent } from "@/lib/server/log";
+import { watchedContracts } from "@/lib/server/deployments";
 
 // Session-free and never cached: every delivery must reach the handler.
 export const dynamic = "force-dynamic";
@@ -40,10 +41,8 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    const events = parseChainhookPayload(payload, [
-      process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "",
-      process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "",
-    ]);
+    // Historical deployments stay watched so in-flight invoices on an old pair still project.
+    const events = parseChainhookPayload(payload, await watchedContracts());
     const { enqueued, duplicates } = await enqueueChainEvents(events);
     await callRpc("record_heartbeat", { p_source: "chainhook", p_detail: { events: events.length, enqueued } }).catch(() => undefined);
 
