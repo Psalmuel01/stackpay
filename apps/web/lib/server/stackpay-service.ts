@@ -17,6 +17,7 @@ import {
   selectRows,
   upsertRow,
   supabaseRequest,
+  callRpc,
 } from "@/lib/server/supabase-admin";
 
 export type Currency = "sBTC" | "STX" | "USDCx";
@@ -119,19 +120,10 @@ type ConfirmInvoicePaymentInput = {
   receiptId: string;
   payerWalletAddress?: string | null;
   confirmedAt?: number | null;
+  blockHash?: string | null;
+  blockHeight?: number | null;
 };
 
-type ChainhookInvoicePaidInput = {
-  phase: "apply" | "rollback";
-  txId: string;
-  invoiceId: string;
-  receiptId: string;
-  payerWalletAddress?: string | null;
-  merchantPrincipal?: string | null;
-  amount?: number | null;
-  currency?: Currency | null;
-  payload: Record<string, unknown>;
-};
 
 type PrepareSettlementInput = {
   walletAddress: string;
@@ -269,24 +261,12 @@ function assertMerchantSetupReady(merchant: Row | null) {
   assertValidMerchantEmail(String(merchant.email ?? ""));
 }
 
-async function syncExpiredInvoices(filters: Record<string, string>) {
-  const invoices = (await selectRows("invoices", {
-    select: "id,status,expires_at",
-    ...filters,
-  })) as Row[] | null;
-
-  const now = Date.now();
-  const expiredIds =
-    invoices
-      ?.filter((invoice) => {
-        const expiresAt = invoice.expires_at ? Date.parse(String(invoice.expires_at)) : Number.NaN;
-        return invoice.status === "pending" && Number.isFinite(expiresAt) && expiresAt <= now;
-      })
-      .map((invoice) => String(invoice.id)) ?? [];
-
-  for (const id of expiredIds) {
-    await patchRows("invoices", { id }, { status: "expired" });
-  }
+/** Compare-and-set expiry in the database: never overwrites a payment committed concurrently. */
+async function expireDueInvoices(scope: { merchantId?: string; onchainInvoiceId?: string }) {
+  await callRpc("expire_due_invoices", {
+    p_merchant_id: scope.merchantId ?? null,
+    p_onchain_invoice_id: scope.onchainInvoiceId ?? null,
+  });
 }
 
 export async function getMerchantProfileByWallet(walletAddress: string) {
@@ -409,9 +389,7 @@ export async function listInvoicesForWallet(walletAddress: string) {
     return [];
   }
 
-  await syncExpiredInvoices({
-    merchant_id: `eq.${merchant.id as string}`,
-  });
+  await expireDueInvoices({ merchantId: String(merchant.id) });
 
   return (await selectRows("invoices", {
     select: "*",
@@ -421,9 +399,7 @@ export async function listInvoicesForWallet(walletAddress: string) {
 }
 
 export async function getInvoiceByIdOrOnchainId(invoiceId: string) {
-  await syncExpiredInvoices({
-    onchain_invoice_id: `eq.${invoiceId}`,
-  });
+  await expireDueInvoices({ onchainInvoiceId: invoiceId });
 
   return selectSingle<Row>("invoices", {
     onchain_invoice_id: `eq.${invoiceId}`,
@@ -1123,57 +1099,27 @@ export async function verifyInvoicePaymentTransaction(invoiceId: string, txId: s
   });
 }
 
+/**
+ * Projects a payment that the caller has already verified against the chain. The invoice, receipt,
+ * activity, notification, and merchant event are written in one database transaction.
+ */
 export async function confirmInvoicePayment(input: ConfirmInvoicePaymentInput) {
-  const invoice = await getInvoiceByIdOrOnchainId(input.invoiceId);
-  if (!invoice) {
-    throw new Error("Invoice not found.");
-  }
+  const outcome = await callRpc<string>("project_invoice_payment", {
+    p_inbox_id: null,
+    p_invoice_onchain_id: input.invoiceId,
+    p_receipt_onchain_id: input.receiptId,
+    p_tx_id: input.txId,
+    p_payer: input.payerWalletAddress ?? null,
+    p_paid_at: typeof input.confirmedAt === "number" && input.confirmedAt > 0 ? new Date(input.confirmedAt * 1000).toISOString() : null,
+    p_block_hash: input.blockHash ?? null,
+    p_block_height: input.blockHeight ?? null,
+  });
+  if (outcome === "missing_invoice") throw new ApiError(404, "invoice_not_found", "Invoice not found.");
+  if (outcome === "conflict") throw new ApiError(409, "payment_conflict", "A different payment is already confirmed for this invoice.");
 
-  const paidAt =
-    typeof input.confirmedAt === "number" && input.confirmedAt > 0
-      ? new Date(input.confirmedAt * 1000).toISOString()
-      : new Date().toISOString();
-
-  const rows = (await patchRows(
-    "invoices",
-    { onchain_invoice_id: input.invoiceId },
-    {
-      status: "paid",
-      paid_at: paidAt,
-    }
-  )) as Row[];
-
-  const updatedInvoice = rows[0] ?? invoice;
-
-  await upsertRow(
-    "receipts",
-    {
-      merchant_id: updatedInvoice.merchant_id,
-      invoice_id: updatedInvoice.id,
-      receipt_key: input.receiptId,
-      onchain_receipt_id: input.receiptId,
-      tx_id: input.txId,
-      payer_wallet_address: input.payerWalletAddress ?? null,
-      amount: updatedInvoice.amount,
-      currency: updatedInvoice.currency,
-      paid_at: paidAt,
-    },
-    "receipt_key"
-  );
-
-  await recordActivity(
-    String(updatedInvoice.merchant_id),
-    "invoice",
-    input.invoiceId,
-    "invoice.paid",
-    {
-      onchainInvoiceId: input.invoiceId,
-      receiptId: input.receiptId,
-    },
-    input.txId
-  );
-
-  return updatedInvoice;
+  const invoice = await selectSingle<Row>("invoices", { onchain_invoice_id: `eq.${input.invoiceId}` });
+  if (!invoice) throw new ApiError(404, "invoice_not_found", "Invoice not found.");
+  return invoice;
 }
 
 function shortPublicId(value: string) {
@@ -1302,9 +1248,7 @@ export async function getDashboardData(walletAddress: string) {
     };
   }
 
-  await syncExpiredInvoices({
-    merchant_id: `eq.${merchant.id as string}`,
-  });
+  await expireDueInvoices({ merchantId: String(merchant.id) });
 
   const [invoices, paymentLinks, activityEvents] = await Promise.all([
     selectRows("invoices", {
@@ -1410,80 +1354,3 @@ export async function markNotificationsReadForWallet(walletAddress: string) {
   )) as Row[];
 }
 
-export async function processChainhookInvoicePaidEvent(input: ChainhookInvoicePaidInput) {
-  const deliveryKey = `${input.phase}:${input.receiptId}:${input.txId}`;
-
-  await upsertRow(
-    "chainhook_events",
-    {
-      delivery_key: deliveryKey,
-      event_type: "invoice-paid",
-      phase: input.phase,
-      tx_id: input.txId,
-      receipt_id: input.receiptId,
-      invoice_id: input.invoiceId,
-      merchant_principal: input.merchantPrincipal ?? null,
-      payload: input.payload,
-      processed_at: new Date().toISOString(),
-    },
-    "delivery_key"
-  );
-
-  if (input.phase === "rollback") {
-    return {
-      status: "rollback_recorded" as const,
-    };
-  }
-
-  const invoice = await getInvoiceByIdOrOnchainId(input.invoiceId);
-  if (!invoice) {
-    return {
-      status: "missing_invoice" as const,
-    };
-  }
-
-  const sync = await verifyInvoicePaymentTransaction(input.invoiceId, input.txId);
-  if (sync.status !== "success" || sync.onchainId !== input.receiptId) throw new ApiError(422, "unverified_event", "Payment event could not be verified.");
-  const updatedInvoice = await confirmInvoicePayment({
-    invoiceId: input.invoiceId,
-    txId: sync.txId,
-    receiptId: input.receiptId,
-    payerWalletAddress: sync.senderAddress,
-    confirmedAt: sync.confirmedAt,
-  });
-
-  const merchant = await selectSingle<Row>("merchant_profiles", {
-    id: `eq.${String(updatedInvoice.merchant_id)}`,
-  });
-
-  await upsertRow(
-    "notifications",
-    {
-      merchant_id: updatedInvoice.merchant_id,
-      source_key: `invoice-paid:${input.receiptId}`,
-      kind: "invoice.paid",
-      title: "Invoice paid",
-      body: `${formatCurrencyAmount(
-        toNumericValue(updatedInvoice.amount),
-        String(updatedInvoice.currency) as Currency
-      )} received for invoice ${shortPublicId(input.invoiceId)}.`,
-      href: `/pay/${input.invoiceId}`,
-      level: "success",
-      metadata: {
-        invoiceId: input.invoiceId,
-        receiptId: input.receiptId,
-        txId: input.txId,
-        payerWalletAddress: input.payerWalletAddress ?? null,
-        merchantPrincipal: input.merchantPrincipal ?? merchant?.wallet_address ?? null,
-        amount: input.amount ?? toNumericValue(updatedInvoice.amount),
-        currency: input.currency ?? String(updatedInvoice.currency),
-      },
-    },
-    "source_key"
-  );
-
-  return {
-    status: "processed" as const,
-    invoice: updatedInvoice,
-  };
-}

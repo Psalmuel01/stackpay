@@ -52,6 +52,8 @@ export async function POST(
       receiptId: sync.onchainId,
       payerWalletAddress: sync.senderAddress,
       confirmedAt: sync.confirmedAt,
+      blockHash: sync.blockHash,
+      blockHeight: sync.blockHeight,
     });
 
     const responsePayload = {

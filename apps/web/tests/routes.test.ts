@@ -4,7 +4,7 @@ import { walletChallengeMessage } from "../lib/server/wallet-auth";
 import { hashMessage } from "@stacks/encryption";
 import { NextRequest } from "next/server";
 const db = vi.hoisted(() => ({ selectRows: vi.fn(), supabaseRequest: vi.fn() }));
-const service = vi.hoisted(() => ({ confirmInvoiceCreation: vi.fn(), confirmSettlementWithdrawal: vi.fn(), getOwnedPaymentLinkIntent: vi.fn(), confirmPaymentLinkChain: vi.fn(), upsertMerchantProfile: vi.fn(), getMerchantProfileByWallet: vi.fn(), processChainhookInvoicePaidEvent: vi.fn() }));
+const service = vi.hoisted(() => ({ confirmInvoiceCreation: vi.fn(), confirmSettlementWithdrawal: vi.fn(), getOwnedPaymentLinkIntent: vi.fn(), confirmPaymentLinkChain: vi.fn(), upsertMerchantProfile: vi.fn(), getMerchantProfileByWallet: vi.fn(), }));
 vi.mock("../lib/server/supabase-admin", () => ({ ...db, isSupabaseConfigured: () => true }));
 vi.mock("../lib/server/stackpay-service", () => service);
 import { POST as confirmInvoice } from "../app/api/invoices/confirm/route";
@@ -153,6 +153,6 @@ describe("webhook secret", () => {
   it.each(["", "configured-secret"])("rejects unauthenticated deliveries when secret is %s", async secret => {
     vi.stubEnv("STACKPAY_CHAINHOOK_SECRET", secret);
     expect((await webhook(request("/api/webhooks/chainhooks", {}))).status).toBe(401);
-    expect(service.processChainhookInvoicePaidEvent).not.toHaveBeenCalled();
+    expect(db.supabaseRequest).not.toHaveBeenCalled();
   });
 });

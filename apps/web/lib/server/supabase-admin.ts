@@ -148,3 +148,8 @@ export async function patchRows(
     prefer: "return=representation",
   });
 }
+
+/** Calls a PostgreSQL function through PostgREST. Arguments are passed by name. */
+export async function callRpc<T = unknown>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+  return (await supabaseRequest(`rpc/${fn}`, { method: "POST", body: args })) as T;
+}

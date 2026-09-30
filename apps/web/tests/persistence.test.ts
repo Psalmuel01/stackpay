@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const db = vi.hoisted(() => ({ selectRows: vi.fn(), patchRows: vi.fn(), insertRow: vi.fn(), upsertRow: vi.fn(), supabaseRequest: vi.fn() }));
+const db = vi.hoisted(() => ({ selectRows: vi.fn(), patchRows: vi.fn(), insertRow: vi.fn(), upsertRow: vi.fn(), supabaseRequest: vi.fn(), callRpc: vi.fn().mockResolvedValue(0) }));
 vi.mock("../lib/server/supabase-admin", () => db);
 import { confirmInvoiceCreation, getOwnedPaymentLinkIntent, verifyInvoicePaymentTransaction } from "../lib/server/stackpay-service";
 const wallet = "ST000000000000000000002AMW42H";

@@ -392,7 +392,7 @@ $$;
 
 -- Compare-and-set expiry: only still-pending invoices past their expiry change state, in one
 -- statement, so a payment committed concurrently is never overwritten.
-create or replace function public.expire_due_invoices(p_merchant_id uuid)
+create or replace function public.expire_due_invoices(p_merchant_id uuid, p_onchain_invoice_id text default null)
 returns integer
 language plpgsql
 security definer
@@ -408,6 +408,7 @@ begin
       and expires_at is not null
       and expires_at <= now()
       and (p_merchant_id is null or merchant_id = p_merchant_id)
+      and (p_onchain_invoice_id is null or onchain_invoice_id = p_onchain_invoice_id)
     returning id, merchant_id, onchain_invoice_id
   ), events as (
     insert into public.merchant_events (merchant_id, event_key, type, data)
@@ -443,7 +444,7 @@ begin
     'public.fail_chain_event(bigint,text,integer)',
     'public.project_invoice_payment(bigint,text,text,text,text,timestamptz,text,bigint)',
     'public.revert_invoice_payment(bigint,text,text,text)',
-    'public.expire_due_invoices(uuid)'
+    'public.expire_due_invoices(uuid,text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', fn);
     execute format('grant execute on function %s to service_role', fn);

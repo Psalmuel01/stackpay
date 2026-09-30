@@ -52,6 +52,9 @@ export type TxSyncResult =
       senderAddress: string;
       txId: string;
       confirmedAt: number | null;
+      /** Anchor block of the confirmed transaction, used as the payment's chain identity. */
+      blockHash: string | null;
+      blockHeight: number | null;
     }
   | {
       status: "abort_by_response" | "abort_by_post_condition" | "failed";
@@ -227,6 +230,8 @@ export async function syncTransaction(txId: string, expected: ExpectedTransactio
       ...verifyTransactionPayload(payload, txId, expected),
       txId,
       confirmedAt,
+      blockHash: typeof payload.block_hash === "string" ? payload.block_hash : null,
+      blockHeight: typeof payload.block_height === "number" ? payload.block_height : null,
     };
   }
 
