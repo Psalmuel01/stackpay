@@ -14,6 +14,11 @@ epoch = '3.3'
 path = 'contracts/processor.clar'
 clarity_version = 4
 epoch = '3.3'
+
+[contracts.direct]
+path = 'contracts/direct-processor.clar'
+clarity_version = 4
+epoch = '3.3'
 [repl.analysis]
 passes = ['check_checker']
 
