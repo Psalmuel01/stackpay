@@ -1,6 +1,28 @@
 {
   "name": "@stackpay/sdk",
-  "private": true,
   "version": "0.1.0",
-  "type": "module"
+  "description": "Official TypeScript client for the StackPay API: invoices, payment links, receipts, settlements, events, and signed webhooks on Stacks.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "engines": { "node": ">=18.17" },
+  "keywords": ["stackpay", "stacks", "sbtc", "bitcoin", "payments", "webhooks"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^4.0.7"
+  }
 }
