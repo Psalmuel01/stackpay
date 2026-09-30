@@ -37,6 +37,13 @@ export const httpsUrlSchema = z.string().max(2048).refine((value) => {
   }
 }, { message: "must be an https URL without credentials" });
 
+/**
+ * Where the hosted checkout sends the payer after a confirmed payment. https only, no credentials;
+ * normalized so the stored form always has a path. Never treat arrival at this URL as proof of
+ * payment: confirm with the API or the invoice.paid webhook.
+ */
+export const successUrlSchema = httpsUrlSchema.transform((value) => new URL(value).toString()).optional();
+
 /** Validates amount against currency precision and range; returns the canonical decimal string. */
 export function exactAmount<T extends { amount: string; currency: "STX" | "sBTC" | "USDCx" }>(value: T, ctx: z.RefinementCtx) {
   try {
@@ -52,6 +59,7 @@ export const createInvoiceSchema = z
     currency: currencySchema,
     description: z.string().max(256, "description must be at most 256 characters").default(""),
     metadata: metadataSchema,
+    success_url: successUrlSchema,
     expires_in: z.number().int().min(300, "expires_in must be at least 300 seconds").max(2_592_000, "expires_in must be at most 30 days").default(86_400),
     customer: z
       .object({
@@ -73,6 +81,7 @@ export const createPaymentLinkSchema = z
     amount: amountSchema.optional(),
     suggested_amounts: z.array(amountSchema).min(1).max(3).optional(),
     metadata: metadataSchema,
+    success_url: successUrlSchema,
   })
   .strict()
   .superRefine((value, ctx) => {

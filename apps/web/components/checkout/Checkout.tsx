@@ -6,6 +6,7 @@ import Logo from "@/components/Logo";
 import TokenLogo from "@/components/TokenLogo";
 import { cn } from "@/components/cn";
 import type { Currency } from "@/lib/format";
+export { returnUrl } from "@/lib/checkout-return";
 
 /* Shared building blocks for the customer-facing hosted checkout pages
    (/pay/[invoiceId] and /pay/link/[slug]). These pages sit outside the
@@ -251,5 +252,45 @@ export function CheckoutNotFound({
         </div>
       </div>
     </CheckoutShell>
+  );
+}
+
+const RETURN_DELAY_SECONDS = 5;
+
+/**
+ * Sends the payer back to the merchant after a confirmed payment. The destination host is always
+ * shown, and the automatic redirect can be stopped.
+ */
+export function ReturnToMerchant({ url, merchantName, auto }: { url: URL; merchantName: string; auto: boolean }) {
+  const [remaining, setRemaining] = useState(auto ? RETURN_DELAY_SECONDS : null);
+
+  useEffect(() => {
+    if (remaining === null) return;
+    if (remaining <= 0) {
+      window.location.assign(url.toString());
+      return;
+    }
+    const timer = window.setTimeout(() => setRemaining((value) => (value === null ? null : value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [remaining, url]);
+
+  return (
+    <div className="mt-5 w-full">
+      <a href={url.toString()} className="btn btn-primary btn-lg w-full" rel="noreferrer">
+        Return to {merchantName}
+      </a>
+      <p className="mt-2 text-center text-sm text-muted" aria-live="polite">
+        {remaining !== null && remaining > 0 ? (
+          <>
+            Taking you to {url.host} in {remaining}s ·{" "}
+            <button type="button" className="font-medium text-fg-2 underline underline-offset-2" onClick={() => setRemaining(null)}>
+              Stay here
+            </button>
+          </>
+        ) : (
+          <>Continues to {url.host}</>
+        )}
+      </p>
+    </div>
   );
 }

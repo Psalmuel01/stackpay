@@ -9,7 +9,7 @@ function merchantBrand(merchant: Row | null | undefined) {
 export function publicInvoice(invoice: Row | null) {
   if (!invoice) return null;
   return {
-    ...pick(invoice, ["public_id", "onchain_invoice_id", "status", "amount", "currency", "description", "recipient_address", "expires_at", "paid_at", "created_at", "tx_id", "processor_contract_id"]),
+    ...pick(invoice, ["public_id", "onchain_invoice_id", "status", "amount", "currency", "description", "recipient_address", "expires_at", "paid_at", "created_at", "tx_id", "processor_contract_id", "success_url"]),
     merchant: merchantBrand(invoice.merchant),
     receipt: invoice.receipt ? pick(invoice.receipt, ["onchain_receipt_id", "tx_id", "payer_wallet_address", "paid_at"]) : null,
   };
@@ -17,7 +17,7 @@ export function publicInvoice(invoice: Row | null) {
 export function publicPaymentLink(link: Row) {
   const metadata = link.metadata ?? {};
   return {
-    ...pick(link, ["onchain_link_id", "kind", "slug", "title", "description", "accepted_currencies", "default_currency", "default_amount", "amount_step", "allow_custom_amount", "is_universal", "is_active"]),
+    ...pick(link, ["onchain_link_id", "kind", "slug", "title", "description", "accepted_currencies", "default_currency", "default_amount", "amount_step", "allow_custom_amount", "is_universal", "is_active", "success_url"]),
     merchant: merchantBrand(link.merchant),
     metadata: pick(metadata, ["pricingMode", "suggestedAmounts"]),
   };

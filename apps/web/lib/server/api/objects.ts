@@ -49,6 +49,7 @@ export function serializeInvoice(row: Row, context: { origin: string; environmen
     customer: { name: row.customer_name ?? "", email: row.customer_email ?? "" },
     recipient: row.recipient_address ?? null,
     checkout_url: `${context.origin}/pay/${row.public_id}`,
+    success_url: row.success_url ?? null,
     onchain_invoice_id: row.onchain_invoice_id ?? null,
     creation_tx_id: row.tx_id ?? null,
     expires_at: row.expires_at ?? null,
@@ -132,6 +133,7 @@ export function serializePaymentLink(row: Row, context: { origin: string; enviro
     url: status === "draft" ? null : `${context.origin}/pay/link/${row.slug}`,
     activation_url: status === "draft" ? `${context.origin}/payment-links` : null,
     onchain_link_id: row.onchain_link_id ?? null,
+    success_url: row.success_url ?? null,
     metadata: typeof metadata.api === "object" && metadata.api ? metadata.api : {},
     created_at: row.created_at,
   };

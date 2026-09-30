@@ -46,6 +46,8 @@ export interface Invoice {
   recipient: string | null;
   /** Hosted checkout page to send the customer to. */
   checkout_url: string;
+  /** Where checkout returns the payer after payment, with `stackpay_invoice` appended. */
+  success_url: string | null;
   onchain_invoice_id: string | null;
   creation_tx_id: string | null;
   expires_at: string | null;
@@ -65,6 +67,11 @@ export interface InvoiceCreateParams {
   /** Seconds until the invoice expires: 300 – 2,592,000 (default 86,400). */
   expires_in?: number;
   customer?: { name?: string; email?: string };
+  /**
+   * https URL the hosted checkout returns the payer to after a confirmed payment. Arrival there is
+   * not proof of payment: confirm with `invoices.retrieve` or the `invoice.paid` webhook.
+   */
+  success_url?: string;
 }
 
 export interface InvoiceListParams extends ListParams {
@@ -89,6 +96,9 @@ export interface PaymentLink {
   /** Console page where a draft link is activated with the merchant's wallet. */
   activation_url: string | null;
   onchain_link_id: string | null;
+  /** Return URL applied to every invoice bought through this link. */
+  success_url: string | null;
+  /** Copied onto each invoice bought through the link, alongside `payment_link`. */
   metadata: Metadata;
   created_at: string;
 }
@@ -100,7 +110,10 @@ export interface PaymentLinkCreateParams {
   pricing?: "fixed" | "suggested";
   amount?: string | number;
   suggested_amounts?: Array<string | number>;
+  /** e.g. `{ sku: "TEE-BLK-M" }`; copied onto every invoice bought through the link. */
   metadata?: Metadata;
+  /** https return URL after payment (see InvoiceCreateParams.success_url). */
+  success_url?: string;
 }
 
 export interface Receipt {

@@ -71,6 +71,7 @@ export async function createInvoice(context: ApiContext, body: z.infer<typeof cr
     p_recipient: recipient,
     p_expires_at: new Date(Date.now() + body.expires_in * 1000).toISOString(),
     p_metadata: body.metadata,
+    p_success_url: body.success_url ?? null,
   });
   // Re-read with amounts as text so the response is exact.
   const row = await one("invoices", { select: INVOICE_COLUMNS, id: `eq.${invoice.id}` });
@@ -125,6 +126,7 @@ export async function createPaymentLink(context: ApiContext, body: z.infer<typeo
     defaultAmount: body.pricing === "fixed" && body.amount ? Number(body.amount) : null,
     suggestedAmounts: body.pricing === "suggested" ? (body.suggested_amounts ?? []).map(Number) : [],
     metadata: { api: body.metadata },
+    successUrl: body.success_url ?? null,
   });
   const row = await one("payment_links", { select: PAYMENT_LINK_COLUMNS, id: `eq.${paymentLink.id}` });
   return serializePaymentLink(row ?? paymentLink, context);

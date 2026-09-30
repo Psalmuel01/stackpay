@@ -1,4 +1,5 @@
 import { processorForDeployment } from "./deployments";
+import { successUrlSchema } from "./api/schemas";
 import { ApiError } from "./api-error";
 import { decimalToAtomic, sumDecimalAmounts, toAtomicAmount } from "../amounts";
 import {
@@ -61,6 +62,8 @@ type CreatePaymentLinkInput = {
   amountStep?: number | null;
   allowCustomAmount?: boolean;
   metadata?: Record<string, unknown>;
+  /** Validated https return URL (see successUrlSchema). */
+  successUrl?: string | null;
 };
 
 type CreateUniversalQrInput = {
@@ -784,6 +787,8 @@ export async function createPaymentLinkDraft(input: CreatePaymentLinkInput) {
     is_universal: false,
     is_active: true,
     draft_contract_call: contractIntent,
+    // Console callers pass raw JSON, so validate here too (https only, no credentials, normalized).
+    success_url: input.successUrl ? successUrlSchema.parse(input.successUrl) ?? null : null,
     metadata: {
       ...(input.metadata ?? {}),
       pricingMode,
@@ -1043,6 +1048,17 @@ export async function preparePublicInvoiceFromLink(input: PreparePublicInvoiceFr
   };
 }
 
+/** Link metadata set through the API, plus the link's identity, for invoices bought through a link. */
+function linkPurchaseMetadata(paymentLink: Row, slug: string) {
+  const api = (paymentLink.metadata as Record<string, unknown> | null)?.api;
+  const merchantMetadata = api && typeof api === "object" && !Array.isArray(api) ? (api as Record<string, unknown>) : {};
+  return {
+    ...merchantMetadata,
+    ...(paymentLink.public_id ? { payment_link: String(paymentLink.public_id) } : {}),
+    paymentLinkSlug: slug,
+  };
+}
+
 export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceInput) {
   ensurePositiveAmount(input.amount, "amount");
   const paymentLink = (await getPublicPaymentLinkBySlug(input.slug)) as Row | null;
@@ -1066,11 +1082,17 @@ export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceIn
     customerEmail: input.customerEmail ?? "",
     recipientAddress: String(paymentLink.draft_contract_call?.arguments?.[0]?.value || ""),
     expiresAt: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
-    metadata: { paymentLinkSlug: input.slug },
+    // Carry the link's own metadata (SKU, product id…) so invoice.paid is enough to fulfil the order.
+    metadata: linkPurchaseMetadata(paymentLink, input.slug),
     source: "public_link",
     activityType: "invoice.created.public-link",
   });
 
+  // The payer finishes on the invoice checkout, so it inherits the link's return URL. Idempotent on replay.
+  if (paymentLink.success_url && !invoice.success_url && String(invoice.merchant_id) === String(paymentLink.merchant_id)) {
+    await patchRows("invoices", { id: `eq.${String(invoice.id)}`, success_url: "is.null" }, { success_url: paymentLink.success_url });
+    return { ...invoice, success_url: paymentLink.success_url };
+  }
   return invoice;
 }
 

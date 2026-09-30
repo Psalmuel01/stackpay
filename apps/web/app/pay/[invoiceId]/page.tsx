@@ -15,7 +15,9 @@ import {
   DetailList,
   DetailRow,
   PaymentProgress,
+  ReturnToMerchant,
   TicketDivider,
+  returnUrl,
 } from "@/components/checkout/Checkout";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
@@ -26,6 +28,8 @@ type RemoteInvoice = {
   status: "draft" | "pending" | "paid" | "expired" | "canceled" | "refunded";
   /** Processor of the deployment this invoice was created on; null for legacy/unbound invoices. */
   processor_contract_id?: string | null;
+  /** Merchant's https return URL for after payment. */
+  success_url?: string | null;
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
@@ -381,6 +385,7 @@ export default function HostedPaymentPage({
   const settled = effectiveStatus === "paid" || refunded;
   const statusLabel = refunded ? "Refunded" : effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : effectiveStatus === "canceled" ? "Canceled" : "Pending";
   const isDraft = !invoice.onchain_invoice_id;
+  const merchantReturn = returnUrl(invoice.success_url, invoice.public_id ?? invoice.onchain_invoice_id);
 
   return (
     <CheckoutShell merchantName={merchantName}>
@@ -460,6 +465,7 @@ export default function HostedPaymentPage({
                   Download receipt (PDF)
                 </a>
               ) : null}
+              {!refunded && merchantReturn ? <ReturnToMerchant url={merchantReturn} merchantName={merchantName} auto={justPaid} /> : null}
             </div>
           ) : effectiveStatus === "canceled" ? (
             <div className="flex flex-col items-center py-2 text-center">

@@ -131,11 +131,28 @@ describe("POST /api/v1/invoices", () => {
     [{ ...valid, metadata: Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`k${i}`, "v"])) }, "metadata"],
     [{ ...valid, expires_in: 10 }, "expires_in"],
     [{ ...valid, customer: { email: "not-an-email" } }, "customer.email"],
+    [{ ...valid, success_url: "http://shop.example/thanks" }, "success_url"],
+    [{ ...valid, success_url: "javascript:alert(1)" }, "success_url"],
+    [{ ...valid, success_url: "https://user:pw@shop.example/" }, "success_url"],
   ])("rejects invalid input %#", async (body, param) => {
     const response = await createInvoice(call("POST", "/api/v1/invoices", body));
     expect(response.status).toBe(400);
     expect((await response.json()).error).toMatchObject({ type: "invalid_request_error", param });
     expect(db.callRpc).not.toHaveBeenCalledWith("create_draft_invoice", expect.anything());
+  });
+
+  it("normalizes and stores an https success_url", async () => {
+    rpc.create_draft_invoice = draftRow({ success_url: "https://shop.example/?order=382" });
+    db.selectRows.mockImplementation(async (table: string) => {
+      if (table === "merchant_profiles") return [{ id: MERCHANT, wallet_address: "ST1MERCHANT" }];
+      if (table === "payment_links") return [{ id: "link", onchain_link_id: "LNK_1", draft_contract_call: { arguments: [{ value: "ST1RECIPIENT" }] } }];
+      if (table === "invoices") return [draftRow({ success_url: "https://shop.example/?order=382" })];
+      return [];
+    });
+    const response = await createInvoice(call("POST", "/api/v1/invoices", { ...valid, success_url: "https://shop.example?order=382" }));
+    expect(response.status).toBe(201);
+    expect(db.callRpc).toHaveBeenCalledWith("create_draft_invoice", expect.objectContaining({ p_success_url: "https://shop.example/?order=382" }));
+    expect((await response.json()).success_url).toBe("https://shop.example/?order=382");
   });
 
   it("rejects unknown fields, including an attempt to choose the merchant", async () => {

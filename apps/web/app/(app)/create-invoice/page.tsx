@@ -95,6 +95,8 @@ export default function CreateInvoicePage() {
   const [description, setDescription] = useState("");
   const [multiPayPricingMode, setMultiPayPricingMode] = useState<MultiPayPricingMode>("fixed");
   const [suggestedAmounts, setSuggestedAmounts] = useState(["", "", ""]);
+  const [sku, setSku] = useState("");
+  const [successUrl, setSuccessUrl] = useState("");
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
   const [result, setResult] = useState<{
     title: string;
@@ -448,8 +450,11 @@ export default function CreateInvoicePage() {
           defaultAmount: multiPayPricingMode === "fixed" ? numericAmount : null,
           suggestedAmounts: multiPayPricingMode === "suggested" ? normalizedSuggestedAmounts : [],
           allowCustomAmount: false,
+          successUrl: successUrl.trim() || null,
           metadata: {
             pricingMode: multiPayPricingMode,
+            // Copied onto every invoice bought through the link, so invoice.paid identifies the product.
+            ...(sku.trim() ? { api: { sku: sku.trim() } } : {}),
           },
         }),
       });
@@ -696,6 +701,45 @@ export default function CreateInvoicePage() {
                 </div>
                 <p className="hint text-sm">Leave any options you don’t need empty.</p>
               </fieldset>
+            ) : null}
+
+            {!isStandard ? (
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="link-sku">
+                    SKU <span className="font-normal text-muted">(optional)</span>
+                  </label>
+                  <input
+                    id="link-sku"
+                    className="field"
+                    value={sku}
+                    maxLength={500}
+                    onChange={(event) => setSku(event.target.value)}
+                    placeholder="TEE-BLK-M"
+                    autoComplete="off"
+                    aria-describedby="link-sku-hint"
+                  />
+                  <p id="link-sku-hint" className="hint text-sm">Included with every payment, for fulfilment.</p>
+                </div>
+                <div>
+                  <label className="label" htmlFor="link-success-url">
+                    Return URL <span className="font-normal text-muted">(optional)</span>
+                  </label>
+                  <input
+                    id="link-success-url"
+                    className="field"
+                    type="url"
+                    inputMode="url"
+                    value={successUrl}
+                    maxLength={2048}
+                    onChange={(event) => setSuccessUrl(event.target.value)}
+                    placeholder="https://yourshop.com/thanks"
+                    autoComplete="off"
+                    aria-describedby="link-success-url-hint"
+                  />
+                  <p id="link-success-url-hint" className="hint text-sm">Where buyers go after paying. Must start with https://.</p>
+                </div>
+              </div>
             ) : null}
 
             {isStandard ? (
