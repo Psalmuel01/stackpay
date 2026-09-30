@@ -44,6 +44,7 @@ export default function RefundDialog({
   onRefunded: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
   const [amount, setAmount] = useState(refundable);
   const [reason, setReason] = useState("");
   const [phase, setPhase] = useState<Phase>({ step: "form" });
@@ -90,6 +91,7 @@ export default function RefundDialog({
         onCancel: () => {
           setPhase({ step: "form" });
           setError("The refund was canceled in your wallet.");
+          window.requestAnimationFrame(() => amountRef.current?.focus());
         },
         onFinish: ({ txId }: { txId: string }) => {
           confirm(txId, prepared.amount).catch((confirmError) => {
@@ -103,6 +105,8 @@ export default function RefundDialog({
     } catch (startError) {
       setPhase({ step: "form" });
       setError(startError instanceof Error ? startError.message : "Could not start the refund.");
+      // The submit button was disabled while busy, so focus would otherwise fall to the page.
+      window.requestAnimationFrame(() => amountRef.current?.focus());
     }
   }
 
@@ -154,6 +158,7 @@ export default function RefundDialog({
             <label className="block">
               <span className="text-sm font-medium">Amount ({currency})</span>
               <input
+                ref={amountRef}
                 className="field mt-1.5 tabular-nums"
                 inputMode="decimal"
                 value={amount}

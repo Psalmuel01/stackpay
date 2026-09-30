@@ -231,7 +231,7 @@ export default function InvoicesPage() {
               {invoices.map((invoice) => {
                 const timeline = getTimeline(invoice);
                 return (
-                  <tr key={invoice.public_id}>
+                  <tr key={invoice.public_id ?? invoice.onchain_invoice_id}>
                     <td className="max-w-[320px]">
                       <div className="truncate font-medium text-fg">
                         {invoice.description || "Untitled invoice"}
@@ -280,7 +280,7 @@ export default function InvoicesPage() {
           {invoices.map((invoice) => {
             const timeline = getTimeline(invoice);
             return (
-              <li key={invoice.public_id} className="px-4 py-4 sm:px-6">
+              <li key={invoice.public_id ?? invoice.onchain_invoice_id} className="px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-fg">{invoice.description || "Untitled invoice"}</p>
@@ -443,7 +443,7 @@ function RefundButton({
 }
 
 function getTimeline(invoice: RemoteInvoice & { effectiveStatus: string }) {
-  if (invoice.effectiveStatus === "paid") {
+  if (invoice.effectiveStatus === "paid" || invoice.effectiveStatus === "refunded") {
     return { label: "Paid", value: formatDateTime(invoice.paid_at) };
   }
   if (!invoice.expires_at) {
