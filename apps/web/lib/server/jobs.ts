@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { processChainEventInbox } from "./chain-events";
+import { deliverDueWebhooks } from "./webhooks/service";
 import { logEvent } from "./log";
 import { callRpc } from "./supabase-admin";
 
@@ -25,7 +26,9 @@ export async function runJobs(): Promise<JobRunSummary> {
   const startedAt = Date.now();
   const summary: JobRunSummary = {};
   summary.chainEvents = await processChainEventInbox({ limit: 50 }).catch((error) => ({ error: error instanceof Error ? error.message : "failed" }));
+  summary.webhooks = await deliverDueWebhooks({ limit: 50 }).catch((error) => ({ error: error instanceof Error ? error.message : "failed" }));
   summary.retention = await callRpc("purge_expired_auth_rows").catch(() => ({ error: "failed" }));
+  summary.idempotencyKeys = await callRpc("purge_expired_idempotency_keys").catch(() => ({ error: "failed" }));
   summary.durationMs = Date.now() - startedAt;
   logEvent("jobs.run", { duration_ms: summary.durationMs as number });
   return summary;

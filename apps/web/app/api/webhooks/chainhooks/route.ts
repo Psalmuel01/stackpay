@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { apiFailure, jsonError, jsonOk } from "@/lib/server/http";
 import { enqueueChainEvents, parseChainhookPayload, processChainEventInbox } from "@/lib/server/chain-events";
+import { deliverDueWebhooks } from "@/lib/server/webhooks/service";
 import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 import { logEvent } from "@/lib/server/log";
 
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
       logEvent("chain_event.inline_processing_failed", { error: error instanceof Error ? error.name : "unknown" }, "warn");
       return null;
     });
+
+    // Notify merchants promptly; anything not sent now is delivered by the job runner.
+    if (processing?.processed) await deliverDueWebhooks({ limit: 10 }).catch(() => undefined);
 
     const summary = { received: true, events: events.length, enqueued, duplicates, processing };
     logEvent("chainhook.delivery", { events: events.length, enqueued, duplicates, processed: processing?.processed ?? null });
