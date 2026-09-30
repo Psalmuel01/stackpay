@@ -21,6 +21,7 @@ trap cleanup EXIT
 "$PG_BIN/initdb" -D "$DATA_DIR" -U postgres --auth=trust >/dev/null
 "$PG_BIN/pg_ctl" -D "$DATA_DIR" -o "-p $PORT -k $DATA_DIR -c listen_addresses=''" -l "$LOG" -w start >/dev/null
 
+export PGOPTIONS="-c client_min_messages=warning"
 PSQL=("$PG_BIN/psql" -h "$DATA_DIR" -p "$PORT" -U postgres -X -q -v ON_ERROR_STOP=1)
 "${PSQL[@]}" -d postgres -c "create database stackpay_test" >/dev/null
 PSQL+=(-d stackpay_test)
