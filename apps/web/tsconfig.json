@@ -14,17 +14,8 @@
       "@stackpay/config": [
         "../../packages/config/src"
       ],
-      "@stackpay/domain": [
-        "../../packages/domain/src"
-      ],
-      "@stackpay/integrations": [
-        "../../packages/integrations/src"
-      ],
       "@stackpay/sdk": [
         "../../packages/sdk/src"
-      ],
-      "@stackpay/ui": [
-        "../../packages/ui/src"
       ]
     },
     "incremental": true

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import QrPreview from "@/components/app/QrPreview";
-import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
+import { type Currency, formatCurrencyAmount } from "@/lib/format";
 import {
   getConnectedWalletAddress,
   submitContractIntent,

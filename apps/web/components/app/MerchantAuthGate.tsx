@@ -59,7 +59,7 @@ export default function MerchantAuthGate({
 }: {
   children: React.ReactNode;
 }) {
-  const publicPage = ["/docs", "/explorer"].includes(usePathname());
+  const publicPage = ["/docs"].includes(usePathname());
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
   const [connected, setConnected] = useState(false);

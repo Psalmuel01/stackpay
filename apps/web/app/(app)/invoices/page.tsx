@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Download, FileText, Plus, Search, SearchX, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import StatusBadge from "@/components/app/StatusBadge";
-import { formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
+import { formatCurrencyAmount, formatDateTime } from "@/lib/format";
 import { getConnectedWalletAddress } from "@/lib/stacks";
 
 type Filter = "all" | "pending" | "paid" | "expired";

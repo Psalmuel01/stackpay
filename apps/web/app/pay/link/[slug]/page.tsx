@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CircleAlert, CircleCheck, Link2Off, Minus, Plus } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
-import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
+import { type Currency, formatCurrencyAmount } from "@/lib/format";
 import {
   AmountDisplay,
   CheckoutNotFound,

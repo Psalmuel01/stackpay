@@ -385,7 +385,7 @@ export default function ProfilePage() {
           <ProfileSection
             id="contact-title"
             title="Contact & notifications"
-            description="How StackPay reaches you and your systems. Neither is shown to customers."
+            description="How StackPay reaches you. Not shown to customers."
           >
             <div>
               <label className="label" htmlFor="email">
@@ -403,26 +403,12 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div>
-              <label className="label" htmlFor="webhook-url">
-                Webhook endpoint <span className="font-normal text-muted">(optional)</span>
-              </label>
-              <input
-                id="webhook-url"
-                className="field font-mono"
-                inputMode="url"
-                value={profile.webhook_url ?? ""}
-                onChange={(event) => updateField("webhook_url", event.target.value)}
-                placeholder="https://yourbusiness.com/webhooks"
-                aria-describedby="webhook-hint"
-                spellCheck={false}
-              />
-              <p id="webhook-hint" className="hint text-sm">
-                We&apos;ll send payment events to this URL so your backend stays in sync.{" "}
-                <Link href="/docs" className="link">
-                  Webhook docs
-                </Link>
-              </p>
+            <div className="well flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-fg">Webhooks and API keys</p>
+                <p className="mt-0.5 text-sm text-muted">Signed payment events and server-side API access are managed on the Developer page.</p>
+              </div>
+              <Link href="/developer" className="btn btn-secondary btn-sm shrink-0">Open Developer</Link>
             </div>
           </ProfileSection>
 

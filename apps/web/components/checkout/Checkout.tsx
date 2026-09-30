@@ -5,7 +5,7 @@ import { Check, Copy, Loader2 } from "lucide-react";
 import Logo from "@/components/Logo";
 import TokenLogo from "@/components/TokenLogo";
 import { cn } from "@/components/cn";
-import type { Currency } from "@/components/app/DemoProvider";
+import type { Currency } from "@/lib/format";
 
 /* Shared building blocks for the customer-facing hosted checkout pages
    (/pay/[invoiceId] and /pay/link/[slug]). These pages sit outside the

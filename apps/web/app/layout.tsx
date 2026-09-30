@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree } from "next/font/google";
-import { DemoProvider } from "@/components/app/DemoProvider";
 import "./globals.css";
 
 // Fallback for platforms without Avenir Next. Not preloaded: Apple devices
@@ -39,7 +38,7 @@ export default function RootLayout({
     <html lang="en" className={figtree.variable} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: `(function(){var t;try{t=localStorage.getItem("stackpay-theme")}catch(e){}document.documentElement.dataset.theme=t==="light"||t==="dark"?t:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"})()` }}/></head>
       <body>
-        <DemoProvider>{children}</DemoProvider>
+        {children}
       </body>
     </html>
   );

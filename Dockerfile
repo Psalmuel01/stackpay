@@ -1,8 +1,6 @@
 # Root Dockerfile: builds the StackPay web app (apps/web).
 # quikdb auto-detects a Dockerfile at the repo root, so this must be the
 # service you want deployed. Build context is the repo root.
-#
-# The API in apps/api is NOT deployed; see apps/api/Dockerfile for that.
 
 # --- deps: install workspace dependencies from the repo root ---------------
 FROM node:22-alpine AS deps
@@ -10,10 +8,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/config/package.json ./packages/config/package.json
-COPY packages/domain/package.json ./packages/domain/package.json
-COPY packages/integrations/package.json ./packages/integrations/package.json
 COPY packages/sdk/package.json ./packages/sdk/package.json
-COPY packages/ui/package.json ./packages/ui/package.json
 # Contracts workspaces are test-only and pull heavy deps; skip them.
 RUN npm ci --omit=optional --workspace @stackpay/web --include-workspace-root
 

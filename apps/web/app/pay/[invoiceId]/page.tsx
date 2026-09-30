@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CircleAlert, CircleCheck, Clock3, Download, FileQuestion } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import StatusBadge from "@/components/app/StatusBadge";
-import { formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
+import { formatCurrencyAmount, formatDateTime } from "@/lib/format";
 import {
   AmountDisplay,
   CheckoutNotFound,

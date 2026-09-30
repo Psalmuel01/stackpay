@@ -6,7 +6,7 @@ import { ArrowDownToLine, ArrowUpRight, CheckCircle2, History, Loader2, Wallet }
 import PageHeader from "@/components/app/PageHeader";
 import TokenLogo from "@/components/TokenLogo";
 import { currencyDecimals, decimalToAtomic, formatDecimalAmount } from "@/lib/amounts";
-import { type Currency, formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
+import { type Currency, formatCurrencyAmount, formatDateTime } from "@/lib/format";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
 type SettlementDashboardResponse = {
