@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import Footer from "@/components/Footer";
+import CodeBlock from "@/components/CodeBlock";
 
 const topics = [
   {
@@ -128,11 +129,9 @@ function Note({
 }) {
   const Icon = tone === "warning" ? AlertTriangle : Info;
   return (
-    <div
-      className={`alert my-6 text-base leading-7 ${tone === "warning" ? "alert-warning" : ""}`}
-    >
+    <div className={`alert my-5 text-sm leading-6 ${tone === "warning" ? "alert-warning" : ""}`}>
       <Icon
-        size={18}
+        size={16}
         aria-hidden="true"
         className={`mt-1 shrink-0 ${tone === "warning" ? "" : "text-muted"}`}
       />
@@ -535,8 +534,7 @@ export default function DocsPage() {
                 <Code>sk_test_…</Code> works only on testnet and{" "}
                 <Code>sk_live_…</Code> only on mainnet.
               </p>
-              <pre className="overflow-x-auto rounded-xl border border-line bg-subtle p-5 font-mono text-[13.5px] leading-6 text-fg-2">
-                <code>{`curl https://<your-stackpay-origin>/api/v1/invoices \\
+              <CodeBlock lang="bash" title="cURL" code={`curl https://<your-stackpay-origin>/api/v1/invoices \\
   -H "Authorization: Bearer $STACKPAY_SECRET_KEY" \\
   -H "Idempotency-Key: order-382" \\
   -H "Content-Type: application/json" \\
@@ -546,8 +544,7 @@ export default function DocsPage() {
     "description": "Order #382",
     "metadata": { "order_id": "382" },
     "success_url": "https://shop.example/orders/382"
-  }'`}</code>
-              </pre>
+  }'`} />
               <p>
                 The response is a <Code>draft</Code> invoice with a{" "}
                 <Code>checkout_url</Code>. Send the customer there: their
@@ -651,13 +648,11 @@ export default function DocsPage() {
                 verification. It isn’t on npm yet; install it from the
                 repository’s <Code>packages/sdk</Code>.
               </p>
-              <pre className="overflow-x-auto rounded-xl border border-line bg-subtle p-5 font-mono text-[13.5px] leading-6 text-fg-2">
-                <code>{`import { StackPay } from "@stackpay/sdk";
+              <CodeBlock lang="ts" title="server.ts" code={`import { StackPay } from "@stackpay/sdk";
 
 const stackpay = new StackPay({ secretKey: process.env.STACKPAY_SECRET_KEY!, baseUrl: "https://<your-stackpay-origin>" });
 const invoice = await stackpay.invoices.create({ amount: "25", currency: "USDCx", metadata: { order_id: "382" } });
-redirect(invoice.checkout_url);`}</code>
-              </pre>
+redirect(invoice.checkout_url);`} />
               <a
                 href="https://github.com/Psalmuel01/stackpay/tree/main/packages/sdk"
                 className="link inline-flex items-center gap-2"
@@ -702,14 +697,12 @@ redirect(invoice.checkout_url);`}</code>
                 parsing, compare in constant time, and reject timestamps more
                 than five minutes old.
               </p>
-              <pre className="overflow-x-auto rounded-xl border border-line bg-subtle p-5 font-mono text-[13.5px] leading-6 text-fg-2">
-                <code>{`export async function POST(request: Request) {
+              <CodeBlock lang="ts" title="app/api/webhooks/stackpay/route.ts" code={`export async function POST(request: Request) {
   const body = await request.text();
   const event = stackpay.webhooks.constructEvent(body, request.headers.get("x-stackpay-signature"), process.env.STACKPAY_WEBHOOK_SECRET!);
   if (event.type === "invoice.paid") await fulfil(event.data.object.metadata.order_id);
   return new Response(null, { status: 200 });
-}`}</code>
-              </pre>
+}`} />
               <ul className="list-disc space-y-3 pl-5 marker:text-faint">
                 <li>
                   Delivery is at least once. Deduplicate on the event{" "}

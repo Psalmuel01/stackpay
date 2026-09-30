@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import CodeBlock from "@/components/CodeBlock";
 import { AlertTriangle, Check, Copy, KeyRound, Loader2, RefreshCw, RotateCcw, Send, Trash2, Webhook } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import StatusBadge from "@/components/app/StatusBadge";
@@ -413,15 +414,8 @@ const invoice = await stackpay.invoices.create({
         </div>
       </div>
       <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-2">
-        {[["Node.js", node], ["cURL", curl]].map(([label, code]) => (
-          <div key={label} className="min-w-0">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-fg-2">{label}</span>
-              <CopyButton value={code} label={`${label} example`} />
-            </div>
-            <pre className="overflow-x-auto rounded-control border border-line bg-subtle p-4 text-[13px] leading-6 text-fg-2"><code>{code}</code></pre>
-          </div>
-        ))}
+        <CodeBlock className="min-w-0" lang="ts" title="Node.js" code={node} />
+        <CodeBlock className="min-w-0" lang="bash" title="cURL" code={curl} />
       </div>
       <div className="border-t border-line px-5 py-4 text-sm text-muted sm:px-6">
         Full reference in the <Link href="/docs#api" className="link">API documentation</Link>. This console is the <strong className="text-fg-2">{environment}</strong> environment.
