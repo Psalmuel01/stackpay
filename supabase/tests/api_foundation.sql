@@ -119,6 +119,17 @@ begin
 end;
 $$;
 
+-- Every API object has a prefixed public id.
+do $$
+declare v_merchant uuid;
+begin
+  select id into v_merchant from public.merchant_profiles where wallet_address = 'ST1API';
+  perform pg_temp.assert((select public_id from public.receipts where onchain_receipt_id = 'RCP_A') ~ '^rcpt_[0-9a-f]{24}$', 'receipt public id');
+  perform pg_temp.assert((select bool_and(public_id ~ '^evt_[0-9a-f]{24}$') from public.merchant_events), 'event public ids');
+  perform pg_temp.assert(public.record_settlement(v_merchant, '0xstl', 'STX', 1, 'ST1D', now(), 'app')->'settlement'->>'public_id' ~ '^stl_', 'settlement public id');
+end;
+$$;
+
 -- Audit log is append-only.
 do $$
 begin

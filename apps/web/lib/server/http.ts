@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { ApiError } from "./api-error";
 import { NextResponse } from "next/server";
 
@@ -27,6 +28,11 @@ export function jsonError(status: number, code: string, message: string) {
 export function apiFailure(error: unknown) {
   if (error instanceof ApiError) return jsonError(error.status, error.code, error.message);
   if (error instanceof SyntaxError) return jsonError(400, "invalid_json", "Invalid JSON request.");
+  if (error instanceof ZodError) {
+    const issue = error.issues[0];
+    const field = issue?.path.join(".");
+    return jsonError(400, "invalid_request", `${field ? `${field}: ` : ""}${issue?.message ?? "Invalid request."}`);
+  }
   // fetch aborted by AbortSignal.timeout(): an upstream (chain or database) did not answer in time.
   if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
     return jsonError(504, "upstream_timeout", "An upstream service did not respond in time. Try again shortly.");
