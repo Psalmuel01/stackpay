@@ -128,7 +128,8 @@ function stableStringify(value: unknown): string {
   return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`).join(",")}}`;
 }
 
-type Handler<Body> = (context: ApiContext, input: { body: Body; request: Request; params: Record<string, string> }) => Promise<{ status?: number; body: unknown }>;
+type HandlerResult = { status?: number; body: unknown } | { raw: Response };
+type Handler<Body> = (context: ApiContext, input: { body: Body; request: Request; params: Record<string, string> }) => Promise<HandlerResult>;
 
 /**
  * Wraps a v1 endpoint: request id, authentication, scope and rate checks, body validation,
@@ -176,6 +177,7 @@ export function v1Endpoint<Schema extends ZodTypeAny | undefined = undefined>(
         if (claim.state === "in_progress") throw new V1Error(409, "idempotency_error", "idempotency_key_in_use", "A request with this Idempotency-Key is still being processed. Retry shortly.");
         try {
           const result = await handler(context, { body, request, params: route.params ?? {} });
+          if ("raw" in result) throw new Error("Idempotent endpoints must return JSON.");
           status = result.status ?? 200;
           await callRpc("complete_idempotent_request", { p_id: claim.id, p_status: status, p_body: result.body });
           return v1Json(result.body, requestId, { status });
@@ -193,6 +195,12 @@ export function v1Endpoint<Schema extends ZodTypeAny | undefined = undefined>(
       }
 
       const result = await handler(context, { body, request, params: route.params ?? {} });
+      if ("raw" in result) {
+        // Non-JSON responses (for example CSV) still carry the request id.
+        status = result.raw.status;
+        result.raw.headers.set("Request-Id", requestId);
+        return result.raw;
+      }
       status = result.status ?? 200;
       return v1Json(result.body, requestId, { status });
     } catch (error) {

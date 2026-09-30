@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, FileText, Plus, Search, SearchX, Wallet } from "lucide-react";
+import { ArrowUpRight, Download, FileText, Plus, Search, SearchX, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import StatusBadge from "@/components/app/StatusBadge";
 import { formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
@@ -11,8 +11,10 @@ import { getConnectedWalletAddress } from "@/lib/stacks";
 type Filter = "all" | "pending" | "paid" | "expired";
 
 type RemoteInvoice = {
-  onchain_invoice_id: string;
-  status: "pending" | "paid" | "expired";
+  /** Stable id (inv_…); the only id an API draft has until checkout. */
+  public_id: string;
+  onchain_invoice_id: string | null;
+  status: "draft" | "pending" | "paid" | "expired" | "canceled";
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
@@ -24,7 +26,7 @@ type RemoteInvoice = {
 };
 
 function getEffectiveStatus(invoice: RemoteInvoice, nowMs: number) {
-  if (invoice.status !== "pending") {
+  if (invoice.status !== "pending" && invoice.status !== "draft") {
     return invoice.status;
   }
 
@@ -33,7 +35,7 @@ function getEffectiveStatus(invoice: RemoteInvoice, nowMs: number) {
     return "expired";
   }
 
-  return "pending";
+  return invoice.status;
 }
 
 export default function InvoicesPage() {
@@ -111,6 +113,7 @@ export default function InvoicesPage() {
         const matchesFilter = filter === "all" ? true : invoice.effectiveStatus === filter;
         const haystack = [
           invoice.onchain_invoice_id,
+          invoice.public_id,
           invoice.customer_name,
           invoice.customer_email,
           String(invoice.amount),
@@ -221,13 +224,13 @@ export default function InvoicesPage() {
               {invoices.map((invoice) => {
                 const timeline = getTimeline(invoice);
                 return (
-                  <tr key={invoice.onchain_invoice_id}>
+                  <tr key={invoice.public_id}>
                     <td className="max-w-[320px]">
                       <div className="truncate font-medium text-fg">
                         {invoice.description || "Untitled invoice"}
                       </div>
                       <div className="mt-0.5 truncate font-mono text-xs text-muted">
-                        {invoice.onchain_invoice_id}
+                        {invoice.onchain_invoice_id ?? invoice.public_id}
                       </div>
                     </td>
                     <td className="max-w-[240px]">
@@ -248,10 +251,10 @@ export default function InvoicesPage() {
                     </td>
                     <td className="text-right">
                       <Link
-                        href={`/pay/${invoice.onchain_invoice_id}`}
+                        href={`/pay/${invoice.onchain_invoice_id ?? invoice.public_id}`}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label={`Open checkout for ${invoice.onchain_invoice_id} (opens in a new tab)`}
+                        aria-label={`Open checkout for ${invoice.onchain_invoice_id ?? invoice.public_id} (opens in a new tab)`}
                         className="btn btn-ghost btn-sm"
                       >
                         Open checkout
@@ -269,12 +272,12 @@ export default function InvoicesPage() {
           {invoices.map((invoice) => {
             const timeline = getTimeline(invoice);
             return (
-              <li key={invoice.onchain_invoice_id} className="px-4 py-4 sm:px-6">
+              <li key={invoice.public_id} className="px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-fg">{invoice.description || "Untitled invoice"}</p>
                     <p className="mt-0.5 truncate text-sm text-muted">
-                      <span className="font-mono text-xs">{invoice.onchain_invoice_id}</span>
+                      <span className="font-mono text-xs">{invoice.onchain_invoice_id ?? invoice.public_id}</span>
                       {" · "}
                       {invoice.customer_name || invoice.customer_email || "No customer"}
                     </p>
@@ -291,10 +294,10 @@ export default function InvoicesPage() {
                     </span>
                   </div>
                   <Link
-                    href={`/pay/${invoice.onchain_invoice_id}`}
+                    href={`/pay/${invoice.onchain_invoice_id ?? invoice.public_id}`}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label={`Open checkout for ${invoice.onchain_invoice_id} (opens in a new tab)`}
+                    aria-label={`Open checkout for ${invoice.onchain_invoice_id ?? invoice.public_id} (opens in a new tab)`}
                     className="btn btn-secondary btn-icon shrink-0"
                   >
                     <ArrowUpRight size={18} aria-hidden="true" />
@@ -314,10 +317,16 @@ export default function InvoicesPage() {
         title="Invoices"
         subtitle="Every invoice issued from your connected wallet, and whether it’s been paid."
         actions={
-          <Link href="/create-invoice" className="btn btn-primary w-full sm:w-auto">
-            <Plus size={18} aria-hidden="true" />
-            Create invoice
-          </Link>
+          <>
+            <a href="/api/exports/reconciliation" download className="btn btn-secondary w-full sm:w-auto">
+              <Download size={18} aria-hidden="true" />
+              Export CSV
+            </a>
+            <Link href="/create-invoice" className="btn btn-primary w-full sm:w-auto">
+              <Plus size={18} aria-hidden="true" />
+              Create invoice
+            </Link>
+          </>
         }
       />
 
@@ -371,7 +380,7 @@ const filterOptions: Array<{ value: Filter; label: string }> = [
 ];
 
 function statusLabel(status: string) {
-  return status === "paid" ? "Paid" : status === "expired" ? "Expired" : "Pending";
+  return ({ paid: "Paid", expired: "Expired", draft: "Draft", canceled: "Canceled" } as Record<string, string>)[status] ?? "Pending";
 }
 
 function getTimeline(invoice: RemoteInvoice & { effectiveStatus: string }) {
