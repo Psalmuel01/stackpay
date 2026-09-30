@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../lib/server/api-error";
 
 const db = vi.hoisted(() => ({ callRpc: vi.fn(), isSupabaseConfigured: () => true }));
-const service = vi.hoisted(() => ({ verifyInvoicePaymentTransaction: vi.fn() }));
+const service = vi.hoisted(() => ({ verifyInvoicePaymentTransaction: vi.fn(), getMerchantProfileByWallet: vi.fn(), recordInvoiceCreation: vi.fn() }));
+const chain = vi.hoisted(() => ({ readArchitectureInvoice: vi.fn() }));
 vi.mock("../lib/server/supabase-admin", () => db);
 vi.mock("../lib/server/stackpay-service", () => service);
+vi.mock("../lib/server/stacks-api", () => chain);
 
 import { parseChainhookPayload, processChainEventInbox } from "../lib/server/chain-events";
 import { POST as webhook } from "../app/api/webhooks/chainhooks/route";
@@ -112,6 +114,54 @@ describe("processChainEventInbox", () => {
     expect(service.verifyInvoicePaymentTransaction).not.toHaveBeenCalled();
     expect(db.callRpc).toHaveBeenCalledWith("revert_invoice_payment", { p_inbox_id: 7, p_receipt_onchain_id: "RCP_1", p_tx_id: txId, p_block_hash: "0xB2" });
     expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 7, p_outcome: "reverted" });
+  });
+});
+
+describe("recovery of lost confirmations", () => {
+  const created = { id: 9, phase: "apply", contract_id: contract, event_name: "invoice-created", tx_id: txId, block_hash: "0xB9", block_height: 20, invoice_onchain_id: "INV_LOST", receipt_onchain_id: null, attempts: 1, data: {} };
+  const onchainInvoice = { merchant: "ST1MERCHANT", recipient: "ST1MERCHANT", amountUnits: "12500000", currency: "STX", createdAt: 1700000000, expiresAt: 1700003600, description: "Order 382" };
+
+  it("recovers an invoice from the chain when its confirmation was lost", async () => {
+    db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [created] : null));
+    chain.readArchitectureInvoice.mockResolvedValue(onchainInvoice);
+    service.getMerchantProfileByWallet.mockResolvedValue({ id: "merchant-1" });
+    service.recordInvoiceCreation.mockResolvedValue({ creation_source: "chain_recovery" });
+    expect(await processChainEventInbox()).toMatchObject({ processed: 1 });
+    expect(service.recordInvoiceCreation).toHaveBeenCalledWith(expect.objectContaining({
+      merchantId: "merchant-1", onchainInvoiceId: "INV_LOST", txId, amount: "12.5", currency: "STX",
+      description: "Order 382", expiresAt: new Date(1700003600 * 1000).toISOString(), source: "chain_recovery",
+    }));
+    expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 9, p_outcome: "recovered" });
+  });
+
+  it("skips invoices for merchants StackPay does not know", async () => {
+    db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [created] : null));
+    chain.readArchitectureInvoice.mockResolvedValue(onchainInvoice);
+    service.getMerchantProfileByWallet.mockResolvedValue(null);
+    await processChainEventInbox();
+    expect(service.recordInvoiceCreation).not.toHaveBeenCalled();
+    expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 9, p_outcome: "unknown_merchant" });
+  });
+
+  it("retries while the invoice is not yet readable on-chain", async () => {
+    db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [created] : fn === "fail_chain_event" ? "retry" : null));
+    chain.readArchitectureInvoice.mockResolvedValue(null);
+    expect(await processChainEventInbox()).toMatchObject({ retried: 1 });
+  });
+
+  it("recovers a withdrawal from a processor settlement event", async () => {
+    const settlement = { ...created, id: 10, event_name: "settlement-completed", invoice_onchain_id: null, data: { merchant: "ST1MERCHANT", recipient: "ST1DEST", currency: "sBTC", amount: "150000" } };
+    db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [settlement] : fn === "record_settlement" ? { outcome: "created" } : null));
+    service.getMerchantProfileByWallet.mockResolvedValue({ id: "merchant-1" });
+    await processChainEventInbox();
+    expect(db.callRpc).toHaveBeenCalledWith("record_settlement", expect.objectContaining({ p_merchant_id: "merchant-1", p_tx_id: txId, p_currency: "sBTC", p_amount: "0.0015", p_destination: "ST1DEST", p_source: "chain_recovery" }));
+    expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 10, p_outcome: "recovered" });
+  });
+
+  it("accepts events from every configured contract", () => {
+    const processor = "ST000000000000000000002AMW42H.processor";
+    const op = paidOperation({ contract_identifier: processor, decoded_value: { event: "settlement-completed", merchant: "ST1M", recipient: "ST1D", currency: "STX", amount: "5" } });
+    expect(parseChainhookPayload({ apply: [block("0xBA", 30, [op, paidOperation()])] }, [contract, processor]).map((e) => e.eventName)).toEqual(["settlement-completed", "invoice-paid"]);
   });
 });
 

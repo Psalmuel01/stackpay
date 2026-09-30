@@ -83,6 +83,8 @@ type ConfirmInvoiceInput = {
   recipientAddress: string;
   expiresInSeconds: number;
   confirmedAt?: number | null;
+  /** Merchant correlation data (order id, customer id, …). Validated by the caller. */
+  metadata?: Record<string, unknown>;
 };
 
 type ChainConfirmationInput = {
@@ -526,18 +528,44 @@ export async function prepareInvoiceCreation(input: CreateInvoiceInput) {
   };
 }
 
-async function persistConfirmedInvoice(row: Row) {
-  // A replay must never reset a paid invoice or replace customer/merchant data.
-  const inserted = await supabaseRequest("invoices", {
-    method: "POST", query: { on_conflict: "onchain_invoice_id" }, body: row,
-    prefer: "resolution=ignore-duplicates,return=representation",
+/**
+ * Records a chain-confirmed invoice creation, its activity, and its invoice.created event in one
+ * transaction. A replay returns the existing invoice unchanged (a paid invoice is never reset).
+ */
+export async function recordInvoiceCreation(row: {
+  merchantId: string;
+  onchainInvoiceId: string;
+  txId: string;
+  amount: number | string;
+  currency: Currency;
+  description: string;
+  customerName?: string;
+  customerEmail?: string;
+  recipientAddress: string;
+  expiresAt: string | null;
+  metadata?: Record<string, unknown>;
+  source: "app" | "public_link" | "chain_recovery" | "api";
+  activityType?: string;
+}) {
+  const result = await callRpc<{ outcome: "created" | "exists" | "conflict"; invoice?: Row }>("record_invoice_creation", {
+    p_merchant_id: row.merchantId,
+    p_onchain_invoice_id: row.onchainInvoiceId,
+    p_tx_id: row.txId,
+    p_amount: String(row.amount),
+    p_currency: row.currency,
+    p_description: row.description,
+    p_customer_name: row.customerName ?? "",
+    p_customer_email: row.customerEmail ?? "",
+    p_recipient: row.recipientAddress,
+    p_expires_at: row.expiresAt,
+    p_metadata: row.metadata ?? {},
+    p_source: row.source,
+    p_activity_type: row.activityType ?? "invoice.created",
   });
-  if (inserted?.[0]) return inserted[0];
-  const existing = await getInvoiceByIdOrOnchainId(String(row.onchain_invoice_id));
-  if (!existing || existing.tx_id !== row.tx_id || existing.merchant_id !== row.merchant_id) {
+  if (result.outcome === "conflict" || !result.invoice) {
     throw new ApiError(409, "invoice_conflict", "This invoice id already belongs to another transaction or deployment.");
   }
-  return existing;
+  return result.invoice;
 }
 
 export async function confirmInvoiceCreation(input: ConfirmInvoiceInput) {
@@ -551,36 +579,20 @@ export async function confirmInvoiceCreation(input: ConfirmInvoiceInput) {
       ? input.confirmedAt * 1000
       : Date.now();
 
-  const invoice = await persistConfirmedInvoice(
-    {
-      merchant_id: merchant.id,
-      onchain_invoice_id: input.onchainId,
-      tx_id: input.txId,
-      status: "pending",
-      amount: input.amount,
-      currency: input.currency,
-      description: input.description,
-      customer_name: input.customerName ?? "",
-      customer_email: input.customerEmail ?? "",
-      recipient_address: input.recipientAddress || walletAddress,
-      expires_at: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
-    }
-  );
-
-  await recordActivity(
-    merchant.id as string,
-    "invoice",
-    input.onchainId,
-    "invoice.created",
-    {
-      onchainInvoiceId: input.onchainId,
-      amount: input.amount,
-      currency: input.currency,
-    },
-    input.txId
-  );
-
-  return invoice;
+  return recordInvoiceCreation({
+    merchantId: String(merchant.id),
+    onchainInvoiceId: input.onchainId,
+    txId: input.txId,
+    amount: input.amount,
+    currency: input.currency,
+    description: input.description,
+    customerName: input.customerName ?? "",
+    customerEmail: input.customerEmail ?? "",
+    recipientAddress: input.recipientAddress || walletAddress,
+    expiresAt: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
+    metadata: input.metadata,
+    source: "app",
+  });
 }
 
 export async function prepareSettlementWithdrawal(input: PrepareSettlementInput) {
@@ -647,34 +659,19 @@ export async function confirmSettlementWithdrawal(input: ConfirmSettlementInput)
       ? new Date(input.confirmedAt * 1000).toISOString()
       : new Date().toISOString();
 
-  const settlementRun = await upsertRow(
-    "settlement_runs",
-    {
-      merchant_id: merchant.id,
-      tx_id: input.txId,
-      currency: input.currency,
-      amount: input.amount,
-      destination: input.destination,
-      status: "completed",
-      executed_at: executedAt,
-      metadata: {},
-    },
-    "tx_id"
-  );
-
-  await recordActivity(
-    String(merchant.id),
-    "settlement_run",
-    String(settlementRun.id),
-    "settlement.completed",
-    {
-      txId: input.txId,
-      currency: input.currency,
-      amount: input.amount,
-      destination: input.destination,
-    },
-    input.txId
-  );
+  const result = await callRpc<{ outcome: "created" | "exists" | "conflict"; settlement?: Row }>("record_settlement", {
+    p_merchant_id: merchant.id,
+    p_tx_id: input.txId,
+    p_currency: input.currency,
+    p_amount: String(input.amount),
+    p_destination: input.destination,
+    p_executed_at: executedAt,
+    p_source: "app",
+  });
+  if (result.outcome === "conflict" || !result.settlement) {
+    throw new ApiError(409, "settlement_conflict", "This withdrawal transaction is recorded for another merchant.");
+  }
+  const settlementRun = result.settlement;
 
   return settlementRun;
 }
@@ -1048,37 +1045,21 @@ export async function confirmPublicInvoiceCreation(input: ConfirmPublicInvoiceIn
       ? input.confirmedAt * 1000
       : Date.now();
 
-  const invoice = await persistConfirmedInvoice(
-    {
-      merchant_id: paymentLink.merchant_id,
-      onchain_invoice_id: input.onchainId,
-      tx_id: input.txId,
-      status: "pending",
-      amount: input.amount,
-      currency: input.currency,
-      description: String(
-        input.description?.trim() || paymentLink.description || paymentLink.title || "Payment via StackPay"
-      ),
-      customer_name: input.customerName ?? "",
-      customer_email: input.customerEmail ?? "",
-      recipient_address: String(paymentLink.draft_contract_call?.arguments?.[0]?.value || ""),
-      expires_at: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
-    }
-  );
-
-  await recordActivity(
-    String(paymentLink.merchant_id),
-    "invoice",
-    input.onchainId,
-    "invoice.created.public-link",
-    {
-      onchainInvoiceId: input.onchainId,
-      slug: input.slug,
-      amount: input.amount,
-      currency: input.currency,
-    },
-    input.txId
-  );
+  const invoice = await recordInvoiceCreation({
+    merchantId: String(paymentLink.merchant_id),
+    onchainInvoiceId: input.onchainId,
+    txId: input.txId,
+    amount: input.amount,
+    currency: input.currency,
+    description: String(input.description?.trim() || paymentLink.description || paymentLink.title || "Payment via StackPay"),
+    customerName: input.customerName ?? "",
+    customerEmail: input.customerEmail ?? "",
+    recipientAddress: String(paymentLink.draft_contract_call?.arguments?.[0]?.value || ""),
+    expiresAt: new Date(confirmedAtMs + input.expiresInSeconds * 1000).toISOString(),
+    metadata: { paymentLinkSlug: input.slug },
+    source: "public_link",
+    activityType: "invoice.created.public-link",
+  });
 
   return invoice;
 }

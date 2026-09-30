@@ -1,6 +1,8 @@
 import { ApiError } from "./api-error";
 import { callRpc } from "./supabase-admin";
-import { verifyInvoicePaymentTransaction } from "./stackpay-service";
+import { getMerchantProfileByWallet, recordInvoiceCreation, verifyInvoicePaymentTransaction, type Currency } from "./stackpay-service";
+import { readArchitectureInvoice } from "./stacks-api";
+import { atomicToDecimal, parseAtomicUnits } from "../amounts";
 import { logEvent } from "./log";
 
 /**
@@ -27,6 +29,8 @@ export type ChainEvent = {
 
 type InboxRow = {
   id: number;
+  contract_id: string;
+  data: Record<string, string | null>;
   phase: "apply" | "rollback";
   event_name: string;
   tx_id: string;
@@ -96,8 +100,9 @@ const text = (value: unknown) => {
  * Extracts contract print events emitted by the expected contract, preserving block identity.
  * Rollback blocks are returned before apply blocks, matching Chainhook's reorg semantics.
  */
-export function parseChainhookPayload(payload: unknown, expectedContractId: string): ChainEvent[] {
-  if (!expectedContractId) throw new ApiError(503, "contract_not_configured", "The architecture contract is not configured.");
+export function parseChainhookPayload(payload: unknown, expectedContracts: string | string[]): ChainEvent[] {
+  const allowed = new Set((Array.isArray(expectedContracts) ? expectedContracts : [expectedContracts]).filter(Boolean));
+  if (allowed.size === 0) throw new ApiError(503, "contract_not_configured", "The StackPay contracts are not configured.");
   const root = (get(payload, ["event"]) ?? payload) as Record<string, unknown>;
   const events: ChainEvent[] = [];
 
@@ -119,7 +124,7 @@ export function parseChainhookPayload(payload: unknown, expectedContractId: stri
           if (text(get(operation, ["type"])) !== "contract_log") return;
           // Enforced on every path: events from any other contract are ignored.
           const contractId = text(get(operation, ["metadata", "contract_identifier"]) ?? get(operation, ["contract_identifier"]));
-          if (contractId !== expectedContractId) return;
+          if (!contractId || !allowed.has(contractId)) return;
 
           const decoded = decodeEvent(
             unwrapClarityValue(get(operation, ["metadata", "decoded_value"])) ??
@@ -146,6 +151,7 @@ export function parseChainhookPayload(payload: unknown, expectedContractId: stri
               merchant: text(decoded.merchant),
               amount: text(decoded.amount),
               currency: text(decoded.currency),
+              recipient: text(decoded.recipient),
             },
           });
         });
@@ -187,7 +193,64 @@ function isRetryable(error: unknown) {
   return false;
 }
 
+const CURRENCIES = new Set(["STX", "sBTC", "USDCx"]);
+
+/**
+ * Recovers an invoice whose interactive confirmation was lost (for example, the merchant closed the
+ * tab after signing). The chain is the source of truth: the full invoice is read from the contract.
+ */
+async function recoverInvoiceCreation(event: InboxRow): Promise<string> {
+  if (!event.invoice_onchain_id) throw new PermanentError("event is missing invoice id");
+  const onchain = await readArchitectureInvoice(event.invoice_onchain_id);
+  if (!onchain) throw new RetryableError("invoice not yet readable on-chain");
+  if (!CURRENCIES.has(onchain.currency)) throw new PermanentError(`unsupported currency ${onchain.currency}`);
+  const units = parseAtomicUnits(onchain.amountUnits);
+  if (units === null || units === 0n) throw new PermanentError("invalid on-chain amount");
+  const merchant = await getMerchantProfileByWallet(onchain.merchant);
+  if (!merchant) return "unknown_merchant";
+  const result = await recordInvoiceCreation({
+    merchantId: String(merchant.id),
+    onchainInvoiceId: event.invoice_onchain_id,
+    txId: event.tx_id,
+    amount: atomicToDecimal(units, onchain.currency as Currency),
+    currency: onchain.currency as Currency,
+    description: onchain.description,
+    recipientAddress: onchain.recipient,
+    expiresAt: Number.isFinite(onchain.expiresAt) && onchain.expiresAt > 0 ? new Date(onchain.expiresAt * 1000).toISOString() : null,
+    source: "chain_recovery",
+  }).catch((error) => {
+    if (error instanceof ApiError && error.status === 409) throw new PermanentError("invoice id recorded for another transaction");
+    throw error;
+  });
+  return result.creation_source === "chain_recovery" ? "recovered" : "already_recorded";
+}
+
+/** Recovers a withdrawal whose interactive confirmation was lost. */
+async function recoverSettlement(event: InboxRow): Promise<string> {
+  const merchantPrincipal = event.data?.merchant ?? null;
+  const currency = event.data?.currency ?? null;
+  const units = parseAtomicUnits(event.data?.amount);
+  if (!merchantPrincipal || !currency || !CURRENCIES.has(currency) || units === null || units === 0n) {
+    throw new PermanentError("settlement event is missing merchant, currency, or amount");
+  }
+  const merchant = await getMerchantProfileByWallet(merchantPrincipal);
+  if (!merchant) return "unknown_merchant";
+  const result = await callRpc<{ outcome: string }>("record_settlement", {
+    p_merchant_id: merchant.id,
+    p_tx_id: event.tx_id,
+    p_currency: currency,
+    p_amount: atomicToDecimal(units, currency as Currency),
+    p_destination: event.data?.recipient ?? merchantPrincipal,
+    p_executed_at: null,
+    p_source: "chain_recovery",
+  });
+  if (result.outcome === "conflict") throw new PermanentError("withdrawal recorded for another merchant");
+  return result.outcome === "created" ? "recovered" : "already_recorded";
+}
+
 async function processApply(event: InboxRow): Promise<string> {
+  if (event.event_name === "invoice-created") return recoverInvoiceCreation(event);
+  if (event.event_name === "settlement-completed") return recoverSettlement(event);
   if (event.event_name !== "invoice-paid") return "ignored";
   if (!event.invoice_onchain_id || !event.receipt_onchain_id) throw new PermanentError("event is missing invoice or receipt id");
 
@@ -213,6 +276,8 @@ async function processApply(event: InboxRow): Promise<string> {
 }
 
 async function processRollback(event: InboxRow): Promise<string> {
+  // Creation and withdrawal rollbacks are recorded for audit; a reapply re-records them idempotently.
+  if (event.event_name === "invoice-created" || event.event_name === "settlement-completed") return "rollback_noted";
   if (event.event_name !== "invoice-paid" || !event.receipt_onchain_id) return "ignored";
   return callRpc<string>("revert_invoice_payment", {
     p_inbox_id: event.id,

@@ -148,6 +148,10 @@ async function callProcessorReadOnly(functionName: string, args: string[]) {
   if (!contractId) {
     throw new Error("NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID is not configured.");
   }
+  return callReadOnly(contractId, functionName, args);
+}
+
+async function callReadOnly(contractId: string, functionName: string, args: string[]) {
 
   const { contractAddress, contractName } = parseContractId(contractId);
   const response = await fetch(
@@ -254,4 +258,39 @@ export async function syncTransaction(txId: string, expected: ExpectedTransactio
 
 export async function syncInvoiceCreationTx(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
   return syncTransaction(txId, expected);
+}
+
+export type OnchainInvoice = {
+  merchant: string;
+  recipient: string;
+  amountUnits: string;
+  currency: string;
+  createdAt: number;
+  expiresAt: number;
+  description: string;
+};
+
+/** Reads an invoice from the architecture contract. Returns null when it does not exist on-chain. */
+export async function readArchitectureInvoice(invoiceId: string): Promise<OnchainInvoice | null> {
+  const contractId = process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "";
+  if (!contractId) throw new ApiError(503, "contract_not_configured", "The architecture contract is not configured.");
+  const payload = await callReadOnly(contractId, "get-invoice", [cvToHex(stringAsciiCV(invoiceId))]);
+  if (!payload.okay) throw new ApiError(503, "chain_unavailable", "The invoice could not be read from the chain.");
+  // (ok (some {…})) | (ok none)
+  const value = cvToValue(hexToCV(payload.result), true) as any;
+  const tuple = value?.value?.value ?? value?.value ?? null;
+  if (!tuple || typeof tuple !== "object" || !("merchant" in tuple)) return null;
+  const field = (name: string) => {
+    const entry = tuple[name];
+    return entry && typeof entry === "object" && "value" in entry ? entry.value : entry;
+  };
+  return {
+    merchant: String(field("merchant")),
+    recipient: String(field("recipient")),
+    amountUnits: String(field("amount")),
+    currency: String(field("currency")),
+    createdAt: Number(field("created-at")),
+    expiresAt: Number(field("expires-at")),
+    description: String(field("description") ?? ""),
+  };
 }

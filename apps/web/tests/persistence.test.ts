@@ -9,17 +9,20 @@ beforeEach(() => {
   db.patchRows.mockResolvedValue([]); db.insertRow.mockResolvedValue({}); db.upsertRow.mockResolvedValue({});
 });
 describe("financial persistence", () => {
-  it("preserves an existing paid invoice on creation replay", async () => {
+  it("records creation atomically and returns the existing invoice on replay", async () => {
+    // The replay guarantee itself (a paid invoice is never reset) is enforced and tested in SQL.
     const paid = { id: "invoice", merchant_id: "merchant", tx_id: creation.txId, status: "paid", paid_at: "2026-01-01" };
-    db.selectRows.mockImplementation(async table => table === "merchant_profiles" ? [{ id: "merchant" }] : [paid]);
-    db.supabaseRequest.mockResolvedValue([]);
-    expect(await confirmInvoiceCreation(creation)).toEqual(paid);
-    expect(db.supabaseRequest).toHaveBeenCalledWith("invoices", expect.objectContaining({ prefer: "resolution=ignore-duplicates,return=representation" }));
+    db.selectRows.mockImplementation(async table => table === "merchant_profiles" ? [{ id: "merchant" }] : []);
+    db.callRpc.mockImplementation(async (fn: string) => fn === "record_invoice_creation" ? { outcome: "exists", invoice: paid } : 0);
+    expect(await confirmInvoiceCreation({ ...creation, metadata: { orderId: "382" } })).toEqual(paid);
+    expect(db.callRpc).toHaveBeenCalledWith("record_invoice_creation", expect.objectContaining({
+      p_merchant_id: "merchant", p_onchain_invoice_id: "INV_1", p_tx_id: creation.txId, p_amount: "1", p_metadata: { orderId: "382" }, p_source: "app",
+    }));
     expect(db.upsertRow).not.toHaveBeenCalledWith("invoices", expect.anything(), expect.anything());
   });
   it("rejects a colliding invoice id from another transaction", async () => {
-    db.selectRows.mockImplementation(async table => table === "merchant_profiles" ? [{ id: "merchant" }] : [{ merchant_id: "merchant", tx_id: "other" }]);
-    db.supabaseRequest.mockResolvedValue([]);
+    db.selectRows.mockImplementation(async table => table === "merchant_profiles" ? [{ id: "merchant" }] : []);
+    db.callRpc.mockImplementation(async (fn: string) => fn === "record_invoice_creation" ? { outcome: "conflict" } : 0);
     await expect(confirmInvoiceCreation(creation)).rejects.toMatchObject({ status: 409 });
   });
   it("rejects a link belonging to another merchant", async () => {

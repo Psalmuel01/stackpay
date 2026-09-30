@@ -39,7 +39,10 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    const events = parseChainhookPayload(payload, process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "");
+    const events = parseChainhookPayload(payload, [
+      process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "",
+      process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "",
+    ]);
     const { enqueued, duplicates } = await enqueueChainEvents(events);
 
     // Enqueueing succeeded, so the delivery is safe to acknowledge even if processing fails now.
