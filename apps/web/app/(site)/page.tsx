@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
+import TokenLogo from "@/components/TokenLogo";
 import { FadeIn, StaggerContainer, StaggerItem, HoverCard } from "@/components/Motion";
+import { CheckoutStory, HeroCoins, PaymentPops, PaymentTicker } from "@/components/landing/LandingMotion";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -32,9 +34,9 @@ export const metadata: Metadata = {
    -------------------------------------------------------------------------- */
 
 const assets = [
-  { name: "sBTC", mark: "₿", description: "Bitcoin, usable on Stacks", tone: "asset-0" },
-  { name: "STX", mark: "S", description: "The native Stacks token", tone: "asset-1" },
-  { name: "USDCx", mark: "$", description: "Dollar-backed stablecoin", tone: "asset-2" },
+  { name: "sBTC", description: "Bitcoin, usable on Stacks" },
+  { name: "STX", description: "The native Stacks token" },
+  { name: "USDCx", description: "Dollar-backed stablecoin" },
 ] as const;
 
 const steps = [
@@ -75,16 +77,7 @@ const trust = [
    -------------------------------------------------------------------------- */
 
 function AssetMark({ index, size = 24 }: { index: 0 | 1 | 2; size?: number }) {
-  const { mark, tone } = assets[index];
-  return (
-    <span
-      aria-hidden="true"
-      className={`asset-mark ${tone} shrink-0`}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.5) }}
-    >
-      {mark}
-    </span>
-  );
+  return <TokenLogo token={assets[index].name} size={size} />;
 }
 
 // A deterministic QR-like pattern with the three finder squares.
@@ -241,56 +234,7 @@ function ProductStage() {
         </div>
       </div>
 
-      {/* Checkout card */}
-      <div className="relative mx-auto max-w-[360px] sm:absolute sm:right-0 sm:top-16 sm:w-[320px] lg:top-10 lg:w-[360px]">
-        <div className="card p-5 shadow-pop ring-1 ring-line-strong sm:p-6">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-base font-semibold text-accent-text">
-              L
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-fg">Lumen Studio</p>
-              <p className="text-xs text-muted">Invoice inv-1043</p>
-            </div>
-            <span className="badge badge-warning">Pending</span>
-          </div>
-          <p className="mt-5 text-sm text-muted">Monthly retainer, October</p>
-          <p className="mt-1 flex items-baseline gap-2 text-4xl font-semibold tabular-nums tracking-tight text-fg">
-            250 <span className="text-lg font-medium text-muted">USDCx</span>
-          </p>
-          <dl className="well mt-5 divide-y divide-line text-sm">
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <dt className="text-muted">Pay with</dt>
-              <dd className="flex items-center gap-2 font-medium text-fg">
-                <AssetMark index={2} size={18} /> USDCx
-              </dd>
-            </div>
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <dt className="text-muted">Network</dt>
-              <dd className="font-medium text-fg">Stacks testnet</dd>
-            </div>
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <dt className="text-muted">Expires</dt>
-              <dd className="font-medium text-fg">In 5 days</dd>
-            </div>
-          </dl>
-          <span className="btn btn-primary btn-lg mt-5 w-full">
-            <Wallet size={18} /> Pay 250 USDCx
-          </span>
-          <p className="mt-3 text-center text-xs text-muted">Confirm in Leather or Xverse</p>
-        </div>
-
-        {/* Confirmation toast */}
-        <div className="absolute -bottom-12 left-3 flex animate-float items-center gap-3 rounded-xl border border-line-strong bg-panel px-4 py-3 shadow-pop sm:-bottom-10 sm:-left-24 lg:-bottom-7 lg:-left-36">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 text-success">
-            <Check size={16} strokeWidth={2.5} />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-fg">Payment confirmed</p>
-            <p className="text-xs text-muted tabular-nums">0.0125 sBTC · inv-1042</p>
-          </div>
-        </div>
-      </div>
+      <CheckoutStory assetMark={<AssetMark index={2} size={18} />} />
     </div>
   );
 }
@@ -471,7 +415,9 @@ export default function HomePage() {
     <>
       <main id="main-content" className="overflow-x-clip">
         {/* Hero ------------------------------------------------------------ */}
-        <section className="relative border-b border-line pb-20 sm:pb-28">
+        <section className="relative pb-16 sm:pb-24">
+          <HeroCoins />
+          <PaymentPops />
           <div className="relative mx-auto max-w-6xl px-4 pt-14 sm:px-6 sm:pt-24">
             <div className="mx-auto max-w-4xl text-center">
               <FadeIn delay={0.1}>
@@ -515,6 +461,11 @@ export default function HomePage() {
             </FadeIn>
           </div>
         </section>
+
+        {/* Live payments ticker -------------------------------------------- */}
+        <div className="border-y border-line">
+          <PaymentTicker />
+        </div>
 
         {/* Assets strip ---------------------------------------------------- */}
         <section aria-labelledby="assets-heading" className="border-b border-line">

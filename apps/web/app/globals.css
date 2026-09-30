@@ -719,6 +719,21 @@ html[data-theme="light"] {
   background: rgb(var(--accent));
 }
 
+/* Landing: endless payments ticker (two identical rows, shifted by half). */
+.ticker-track {
+  animation: ticker 48s linear infinite;
+}
+
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(calc(-50% - 6px));
+  }
+}
+
 .docs-section {
   scroll-margin-top: 110px;
 }
@@ -1390,43 +1405,6 @@ html[data-theme="light"] {
   gap: 10px;
   font-size: 14.5px;
   font-weight: 600;
-}
-
-.asset-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.asset-0 {
-  background: rgb(247 147 26 / 0.14);
-  color: rgb(247 147 26);
-}
-
-.asset-1 {
-  background: rgb(140 110 255 / 0.14);
-  color: rgb(165 140 255);
-}
-
-.asset-2 {
-  background: rgb(60 140 255 / 0.14);
-  color: rgb(110 170 255);
-}
-
-html[data-theme="light"] .asset-1 {
-  color: rgb(101 70 220);
-}
-
-html[data-theme="light"] .asset-2 {
-  color: rgb(37 99 235);
-}
-
-html[data-theme="light"] .asset-0 {
-  color: rgb(194 105 8);
 }
 
 .asset-description {

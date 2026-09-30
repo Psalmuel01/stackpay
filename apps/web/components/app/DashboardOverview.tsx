@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, ArrowRight, Plus, FileText, Link2, QrCode, Check, Clock3, ArrowDownToLine, RefreshCw, BookOpen } from "lucide-react";
 import PageHeader from "./PageHeader";
+import TokenLogo from "@/components/TokenLogo";
 type Currency = "sBTC" | "STX" | "USDCx";
 
 export type DashboardResponse = {
@@ -40,10 +41,10 @@ export type DashboardResponse = {
   }>;
 };
 
-const assets: Array<{ currency: Currency; mark: string; description: string }> = [
-  { currency: "sBTC", mark: "₿", description: "Bitcoin-backed" },
-  { currency: "STX", mark: "S", description: "Stacks" },
-  { currency: "USDCx", mark: "$", description: "US dollar-backed" },
+const assets: Array<{ currency: Currency; description: string }> = [
+  { currency: "sBTC", description: "Bitcoin-backed" },
+  { currency: "STX", description: "Stacks" },
+  { currency: "USDCx", description: "US dollar-backed" },
 ];
 
 export default function DashboardOverview({ data, updatedAt, refreshing, onRefresh }: { data: DashboardResponse; updatedAt?: string; refreshing?: boolean; onRefresh?: () => void }) {
@@ -60,7 +61,7 @@ export default function DashboardOverview({ data, updatedAt, refreshing, onRefre
     </div>
     <section aria-labelledby="received-title" className="overview-panel received-panel">
       <div className="panel-heading"><div><h2 id="received-title">Payments received</h2><p>Total from paid invoices, before withdrawals.</p></div><Link href="/settlements" className="console-text-link">Withdraw funds <ArrowUpRight size={16} aria-hidden="true"/></Link></div>
-      <div className="received-grid">{assets.map(({ currency, mark, description }, i) => <div className="received-asset" key={currency}><div className="asset-heading"><span className={`asset-mark asset-${i}`} aria-hidden="true">{mark}</span><span>{currency}</span><span className="asset-description">{description}</span></div><p className="received-value">{new Intl.NumberFormat("en-US", { maximumFractionDigits: currency === "sBTC" ? 8 : 6 }).format(data.processorBalances[currency])}<span>{currency}</span></p></div>)}</div>
+      <div className="received-grid">{assets.map(({ currency, description }) => <div className="received-asset" key={currency}><div className="asset-heading"><TokenLogo token={currency} size={28} /><span>{currency}</span><span className="asset-description">{description}</span></div><p className="received-value">{new Intl.NumberFormat("en-US", { maximumFractionDigits: currency === "sBTC" ? 8 : 6 }).format(data.processorBalances[currency])}<span>{currency}</span></p></div>)}</div>
     </section>
     <div className="overview-stats">{[
       { label: "Paid invoices", value: data.stats.paidInvoices, detail: "Confirmed on-chain", icon: Check, href: "/invoices" },

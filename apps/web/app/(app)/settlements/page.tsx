@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpRight, CheckCircle2, History, Loader2, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
+import TokenLogo from "@/components/TokenLogo";
 import { type Currency, formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
@@ -30,10 +31,10 @@ type SettlementDashboardResponse = {
 
 const currencies: Currency[] = ["sBTC", "STX", "USDCx"];
 
-const assets: Array<{ currency: Currency; mark: string; description: string }> = [
-  { currency: "sBTC", mark: "₿", description: "Bitcoin-backed" },
-  { currency: "STX", mark: "S", description: "Stacks" },
-  { currency: "USDCx", mark: "$", description: "US dollar-backed" },
+const assets: Array<{ currency: Currency; description: string }> = [
+  { currency: "sBTC", description: "Bitcoin-backed" },
+  { currency: "STX", description: "Stacks" },
+  { currency: "USDCx", description: "US dollar-backed" },
 ];
 
 function formatAmount(amount: number, currency: Currency) {
@@ -325,11 +326,9 @@ export default function SettlementsPage() {
         {/* Mobile: one stacked list */}
         <div className="card overflow-hidden sm:hidden">
           <ul className="divide-y divide-line">
-            {assets.map(({ currency: item, mark, description }, index) => (
+            {assets.map(({ currency: item, description }) => (
               <li key={item} className="flex items-center gap-3 px-5 py-4">
-                <span className={`asset-mark asset-${index}`} aria-hidden="true">
-                  {mark}
-                </span>
+                <TokenLogo token={item} size={32} />
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-fg">{item}</div>
                   <div className="text-sm text-muted">{description}</div>
@@ -347,12 +346,10 @@ export default function SettlementsPage() {
 
         {/* Tablet and up: three stat cards */}
         <div className="hidden gap-4 sm:grid sm:grid-cols-3">
-          {assets.map(({ currency: item, mark, description }, index) => (
+          {assets.map(({ currency: item, description }) => (
             <div key={item} className="card p-5 sm:p-6">
               <div className="flex items-center gap-3">
-                <span className={`asset-mark asset-${index}`} aria-hidden="true">
-                  {mark}
-                </span>
+                <TokenLogo token={item} size={32} />
                 <span className="text-sm font-semibold text-fg">{item}</span>
                 <span className="ml-auto text-sm text-muted">{description}</span>
               </div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Loader2 } from "lucide-react";
 import Logo from "@/components/Logo";
+import TokenLogo from "@/components/TokenLogo";
 import { cn } from "@/components/cn";
 import type { Currency } from "@/components/app/DemoProvider";
 
@@ -104,20 +105,9 @@ export function AmountDisplay({
   );
 }
 
-const assetMarks: Record<Currency, { mark: string; tone: string }> = {
-  sBTC: { mark: "₿", tone: "asset-0" },
-  STX: { mark: "S", tone: "asset-1" },
-  USDCx: { mark: "$", tone: "asset-2" },
-};
-
-/** Same coloured asset glyph used on the merchant dashboard. */
+/** The official token logo, as on the merchant dashboard. */
 export function AssetMark({ currency }: { currency: Currency }) {
-  const { mark, tone } = assetMarks[currency] ?? assetMarks.STX;
-  return (
-    <span aria-hidden="true" className={cn("asset-mark !h-6 !w-6 !text-[13px]", tone)}>
-      {mark}
-    </span>
-  );
+  return <TokenLogo token={currency} size={24} />;
 }
 
 /** Receipt-style perforation between a card's summary and its details. */
