@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { logEvent } from "./log";
 import { ZodError } from "zod";
 import { ApiError } from "./api-error";
 import { NextResponse } from "next/server";
@@ -13,15 +15,19 @@ export function jsonOk(data: unknown, init?: ResponseInit) {
   return response;
 }
 
+/** Error envelope with a request id so a user report can be matched to the server log line. */
 export function jsonError(status: number, code: string, message: string) {
+  const requestId = `req_${randomBytes(12).toString("hex")}`;
+  if (status >= 500) logEvent("console.error", { request_id: requestId, status, code }, "error");
   return NextResponse.json(
     {
       error: {
         code,
         message,
+        request_id: requestId,
       },
     },
-    { status }
+    { status, headers: { "Request-Id": requestId } }
   );
 }
 
@@ -37,6 +43,7 @@ export function apiFailure(error: unknown) {
   if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
     return jsonError(504, "upstream_timeout", "An upstream service did not respond in time. Try again shortly.");
   }
-  console.error("[stackpay:api]", error instanceof Error ? error.name : "Unknown error");
-  return jsonError(500, "request_failed", "The request could not be completed.");
+  const response = jsonError(500, "request_failed", "The request could not be completed. If it keeps happening, contact support with the request id.");
+  logEvent("console.unhandled_error", { request_id: response.headers.get("Request-Id"), error: error instanceof Error ? error.name : "unknown" }, "error");
+  return response;
 }

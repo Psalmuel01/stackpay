@@ -30,6 +30,7 @@ export async function runJobs(): Promise<JobRunSummary> {
   summary.retention = await callRpc("purge_expired_auth_rows").catch(() => ({ error: "failed" }));
   summary.idempotencyKeys = await callRpc("purge_expired_idempotency_keys").catch(() => ({ error: "failed" }));
   summary.durationMs = Date.now() - startedAt;
+  await callRpc("record_heartbeat", { p_source: "jobs", p_detail: { duration_ms: summary.durationMs } }).catch(() => undefined);
   logEvent("jobs.run", { duration_ms: summary.durationMs as number });
   return summary;
 }

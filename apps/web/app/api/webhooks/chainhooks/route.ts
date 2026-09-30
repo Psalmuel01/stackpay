@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { apiFailure, jsonError, jsonOk } from "@/lib/server/http";
 import { enqueueChainEvents, parseChainhookPayload, processChainEventInbox } from "@/lib/server/chain-events";
 import { deliverDueWebhooks } from "@/lib/server/webhooks/service";
-import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
+import { callRpc, isSupabaseConfigured } from "@/lib/server/supabase-admin";
 import { logEvent } from "@/lib/server/log";
 
 // Session-free and never cached: every delivery must reach the handler.
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID ?? "",
     ]);
     const { enqueued, duplicates } = await enqueueChainEvents(events);
+    await callRpc("record_heartbeat", { p_source: "chainhook", p_detail: { events: events.length, enqueued } }).catch(() => undefined);
 
     // Enqueueing succeeded, so the delivery is safe to acknowledge even if processing fails now.
     const processing = await processChainEventInbox({ limit: 25 }).catch((error) => {
