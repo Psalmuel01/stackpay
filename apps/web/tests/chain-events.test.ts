@@ -134,6 +134,17 @@ describe("recovery of lost confirmations", () => {
     expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 9, p_outcome: "recovered" });
   });
 
+  it("attaches a recovered on-chain invoice to its API draft", async () => {
+    const draftId = "inv_" + "b".repeat(24);
+    db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [created] : fn === "attach_draft_invoice" ? { outcome: "attached" } : null));
+    chain.readArchitectureInvoice.mockResolvedValue({ ...onchainInvoice, description: draftId });
+    service.getMerchantProfileByWallet.mockResolvedValue({ id: "merchant-1" });
+    await processChainEventInbox();
+    expect(db.callRpc).toHaveBeenCalledWith("attach_draft_invoice", expect.objectContaining({ p_public_id: draftId, p_merchant_id: "merchant-1", p_onchain_invoice_id: "INV_LOST", p_amount: "12.5", p_currency: "STX" }));
+    expect(service.recordInvoiceCreation).not.toHaveBeenCalled();
+    expect(db.callRpc).toHaveBeenCalledWith("complete_chain_event", { p_id: 9, p_outcome: "recovered_draft" });
+  });
+
   it("skips invoices for merchants StackPay does not know", async () => {
     db.callRpc.mockImplementation(async (fn: string) => (fn === "claim_chain_events" ? [created] : null));
     chain.readArchitectureInvoice.mockResolvedValue(onchainInvoice);

@@ -9,7 +9,7 @@ function merchantBrand(merchant: Row | null | undefined) {
 export function publicInvoice(invoice: Row | null) {
   if (!invoice) return null;
   return {
-    ...pick(invoice, ["onchain_invoice_id", "status", "amount", "currency", "description", "recipient_address", "expires_at", "paid_at", "created_at", "tx_id"]),
+    ...pick(invoice, ["public_id", "onchain_invoice_id", "status", "amount", "currency", "description", "recipient_address", "expires_at", "paid_at", "created_at", "tx_id"]),
     merchant: merchantBrand(invoice.merchant),
     receipt: invoice.receipt ? pick(invoice.receipt, ["onchain_receipt_id", "tx_id", "payer_wallet_address", "paid_at"]) : null,
   };

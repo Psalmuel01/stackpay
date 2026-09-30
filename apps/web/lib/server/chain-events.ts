@@ -208,6 +208,23 @@ async function recoverInvoiceCreation(event: InboxRow): Promise<string> {
   if (units === null || units === 0n) throw new PermanentError("invalid on-chain amount");
   const merchant = await getMerchantProfileByWallet(onchain.merchant);
   if (!merchant) return "unknown_merchant";
+
+  // An API draft paid through the Universal link carries its public id as the description.
+  if (/^inv_[0-9a-f]{24}$/.test(onchain.description)) {
+    const attached = await callRpc<{ outcome: string }>("attach_draft_invoice", {
+      p_public_id: onchain.description,
+      p_merchant_id: merchant.id,
+      p_onchain_invoice_id: event.invoice_onchain_id,
+      p_tx_id: event.tx_id,
+      p_amount: atomicToDecimal(units, onchain.currency as Currency),
+      p_currency: onchain.currency,
+      p_expires_at: Number.isFinite(onchain.expiresAt) && onchain.expiresAt > 0 ? new Date(onchain.expiresAt * 1000).toISOString() : null,
+    });
+    if (attached.outcome === "attached") return "recovered_draft";
+    if (attached.outcome === "already_attached") return "already_recorded";
+    // Not a matching draft: fall through and record the chain invoice so the payment is not lost.
+  }
+
   const result = await recordInvoiceCreation({
     merchantId: String(merchant.id),
     onchainInvoiceId: event.invoice_onchain_id,

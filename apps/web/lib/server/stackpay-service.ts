@@ -401,6 +401,13 @@ export async function listInvoicesForWallet(walletAddress: string) {
 }
 
 export async function getInvoiceByIdOrOnchainId(invoiceId: string) {
+  // Accepts an on-chain invoice id or an API invoice's public id (inv_…).
+  if (/^inv_[0-9a-f]{24}$/.test(invoiceId)) {
+    const byPublicId = await selectSingle<Row>("invoices", { public_id: `eq.${invoiceId}` });
+    if (byPublicId?.onchain_invoice_id) await expireDueInvoices({ onchainInvoiceId: String(byPublicId.onchain_invoice_id) });
+    else if (byPublicId) await expireDueInvoices({ merchantId: String(byPublicId.merchant_id) });
+    return byPublicId ? selectSingle<Row>("invoices", { public_id: `eq.${invoiceId}` }) : null;
+  }
   await expireDueInvoices({ onchainInvoiceId: invoiceId });
 
   return selectSingle<Row>("invoices", {

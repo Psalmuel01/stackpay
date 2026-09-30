@@ -20,8 +20,10 @@ import {
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
 type RemoteInvoice = {
-  onchain_invoice_id: string;
-  status: "pending" | "paid" | "expired";
+  public_id?: string;
+  /** Null while an API invoice is still a draft (created on-chain at checkout). */
+  onchain_invoice_id: string | null;
+  status: "draft" | "pending" | "paid" | "expired" | "canceled";
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
@@ -48,7 +50,7 @@ function getEffectiveStatus(invoice: RemoteInvoice | null, nowMs: number) {
     return "pending";
   }
 
-  if (invoice.status !== "pending") {
+  if (invoice.status !== "pending" && invoice.status !== "draft") {
     return invoice.status;
   }
 
@@ -57,7 +59,7 @@ function getEffectiveStatus(invoice: RemoteInvoice | null, nowMs: number) {
     return "expired";
   }
 
-  return "pending";
+  return invoice.status;
 }
 
 function getProcessorContractId() {
@@ -106,7 +108,7 @@ function formatExpiry(expiresAt: string | null, nowMs: number) {
   return `In ${relative} · ${absolute}`;
 }
 
-type PaymentPhase = "idle" | "signing" | "confirming";
+type PaymentPhase = "idle" | "preparing-signing" | "preparing" | "signing" | "confirming";
 
 export default function HostedPaymentPage({
   params,
@@ -123,6 +125,8 @@ export default function HostedPaymentPage({
   // Presentation-only: which step of the payment the customer is in.
   const [phase, setPhase] = useState<PaymentPhase>("idle");
   const [justPaid, setJustPaid] = useState(false);
+  // True once this visit created the on-chain invoice for a draft (the two-step flow).
+  const [twoStep, setTwoStep] = useState(false);
 
   useEffect(() => {
     setConnectedAddress(getConnectedWalletAddress());
@@ -181,21 +185,77 @@ export default function HostedPaymentPage({
     "Merchant";
   const resolvedReceiptId = paymentReceiptId || invoice?.receipt?.onchain_receipt_id || null;
 
-  async function handleRemotePayment() {
-    if (!invoice?.onchain_invoice_id) {
-      setPaymentError("This invoice is missing its on-chain invoice id.");
-      return;
+  /**
+   * API invoices start as drafts: the customer first creates the on-chain invoice from the
+   * merchant's Universal link (step 1), then pays it (step 2). Returns the on-chain invoice id.
+   */
+  async function createDraftOnchain(publicId: string): Promise<string> {
+    const prepared = await fetch(`/api/invoices/${publicId}/checkout`, { method: "POST" });
+    const preparedPayload = await prepared.json();
+    if (!prepared.ok) throw new Error(preparedPayload?.error?.message ?? "This invoice can’t be paid right now.");
+    const { contractIntent, expiresInSeconds } = preparedPayload.data as { contractIntent: StackPayContractIntent; expiresInSeconds: number };
+
+    setPhase("preparing-signing");
+    const txId = await new Promise<string>((resolve, reject) => {
+      submitContractIntent(contractIntent, {
+        onCancel: () => reject(new Error("The request was canceled in your wallet. You can try again.")),
+        onFinish: ({ txId: finishedTxId }) => resolve(finishedTxId),
+      }).catch(reject);
+    });
+
+    setPhase("preparing");
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`/api/invoices/${publicId}/checkout/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txId, expiresInSeconds }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error?.message ?? "Could not prepare the payment.");
+      if (payload.data?.status === "success" && payload.data.onchainInvoiceId) return String(payload.data.onchainInvoiceId);
+      if (payload.data?.status && payload.data.status !== "pending") throw new Error("The payment request could not be created on Stacks.");
+      await new Promise((resolve) => window.setTimeout(resolve, 3000));
     }
+    throw new Error("Preparing the payment took too long. Refresh the page to continue.");
+  }
+
+  async function handleRemotePayment() {
+    if (!invoice) return;
 
     if (!connectedAddress) {
       setPaymentError("Connect a wallet before making payment.");
       return;
     }
 
-    if (effectiveStatus !== "pending") {
+    if (effectiveStatus !== "pending" && effectiveStatus !== "draft") {
       setPaymentError("This invoice is no longer payable.");
       return;
     }
+
+    let onchainInvoiceId = invoice.onchain_invoice_id;
+    if (!onchainInvoiceId) {
+      if (!invoice.public_id) {
+        setPaymentError("This invoice is missing its identifier.");
+        return;
+      }
+      setSubmittingPayment(true);
+      setPaymentError(null);
+      setTwoStep(true);
+      try {
+        onchainInvoiceId = await createDraftOnchain(invoice.public_id);
+        setInvoice((current) => (current ? { ...current, onchain_invoice_id: onchainInvoiceId, status: "pending" } : current));
+      } catch (error) {
+        setPaymentError(error instanceof Error ? error.message : "Could not prepare the payment.");
+        setSubmittingPayment(false);
+        setPhase("idle");
+        return;
+      }
+    }
+    await payOnchainInvoice(onchainInvoiceId);
+  }
+
+  async function payOnchainInvoice(onchainInvoiceId: string) {
+    if (!invoice || !connectedAddress) return;
 
     const contractIntent: StackPayContractIntent =
       invoice.currency === "STX"
@@ -205,8 +265,8 @@ export default function HostedPaymentPage({
           functionName: "process-stx-payment",
           network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet",
           arguments: [
-            { type: "string-ascii", value: invoice.onchain_invoice_id },
-            { type: "uint", value: toAtomicAmount(Number(invoice.amount), invoice.currency) },
+            { type: "string-ascii", value: onchainInvoiceId },
+            { type: "uint", value: toAtomicAmount(String(invoice.amount), invoice.currency) },
           ],
           notes: [],
         }
@@ -216,8 +276,8 @@ export default function HostedPaymentPage({
           functionName: "process-sip-010-payment",
           network: process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet",
           arguments: [
-            { type: "string-ascii", value: invoice.onchain_invoice_id },
-            { type: "uint", value: toAtomicAmount(Number(invoice.amount), invoice.currency) },
+            { type: "string-ascii", value: onchainInvoiceId },
+            { type: "uint", value: toAtomicAmount(String(invoice.amount), invoice.currency) },
             { type: "principal", value: getTokenContractId(invoice.currency) ?? "" },
           ],
           notes: [],
@@ -238,7 +298,7 @@ export default function HostedPaymentPage({
           setPhase("confirming");
           try {
             for (let attempt = 0; attempt < 20; attempt += 1) {
-              const response = await fetch(`/api/invoices/${invoice.onchain_invoice_id}/payment`, {
+              const response = await fetch(`/api/invoices/${onchainInvoiceId}/payment`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -313,7 +373,8 @@ export default function HostedPaymentPage({
   }
 
   const amountLabel = formatCurrencyAmount(Number(invoice.amount), invoice.currency);
-  const statusLabel = effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : "Pending";
+  const statusLabel = effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : effectiveStatus === "canceled" ? "Canceled" : "Pending";
+  const isDraft = !invoice.onchain_invoice_id;
 
   return (
     <CheckoutShell merchantName={merchantName}>
@@ -343,7 +404,7 @@ export default function HostedPaymentPage({
               ) : null}
             </DetailRow>
             <DetailRow term="Invoice">
-              <CopyValue value={invoice.onchain_invoice_id} label="Invoice ID" />
+              <CopyValue value={invoice.onchain_invoice_id ?? invoice.public_id ?? ""} label="Invoice ID" />
             </DetailRow>
             {effectiveStatus === "paid" ? (
               <DetailRow term="Paid">
@@ -392,6 +453,16 @@ export default function HostedPaymentPage({
                 </a>
               ) : null}
             </div>
+          ) : effectiveStatus === "canceled" ? (
+            <div className="flex flex-col items-center py-2 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-full border border-line-strong bg-panel text-muted" aria-hidden="true">
+                <CircleAlert size={26} />
+              </span>
+              <p className="mt-4 text-xl font-semibold text-fg">This invoice was canceled</p>
+              <p className="mt-1.5 max-w-sm text-sm text-muted">
+                {merchantName} canceled this payment request, so there’s nothing to pay. Contact them if you think this is a mistake.
+              </p>
+            </div>
           ) : effectiveStatus === "expired" ? (
             <div className="flex flex-col items-center py-2 text-center">
               <span className="grid h-14 w-14 place-items-center rounded-full border border-line-strong bg-panel text-muted" aria-hidden="true">
@@ -417,8 +488,16 @@ export default function HostedPaymentPage({
                 </div>
               ) : null}
 
-              {phase === "signing" ? (
-                <PaymentProgress title="Confirm the payment in your wallet">
+              {phase === "preparing-signing" ? (
+                <PaymentProgress title="Step 1 of 2: approve the payment request">
+                  Your wallet creates this invoice on Stacks. No money moves in this step.
+                </PaymentProgress>
+              ) : phase === "preparing" ? (
+                <PaymentProgress title="Step 1 of 2: preparing your payment…">
+                  Waiting for Stacks to confirm the request. Keep this page open.
+                </PaymentProgress>
+              ) : phase === "signing" ? (
+                <PaymentProgress title={twoStep ? "Step 2 of 2: confirm the payment in your wallet" : "Confirm the payment in your wallet"}>
                   Check the amount and recipient, then approve it.
                 </PaymentProgress>
               ) : phase === "confirming" ? (
@@ -447,7 +526,9 @@ export default function HostedPaymentPage({
                   {submittingPayment
                     ? phase === "confirming"
                       ? "Confirming payment…"
-                      : "Waiting for wallet…"
+                      : phase === "preparing"
+                        ? "Preparing payment…"
+                        : "Waiting for wallet…"
                     : `Pay ${amountLabel}`}
                 </button>
               ) : (
@@ -455,7 +536,9 @@ export default function HostedPaymentPage({
               )}
               <p className="text-center text-sm text-muted">
                 {connectedAddress
-                  ? "You’ll review and approve the payment in your wallet."
+                  ? isDraft
+                    ? "Your wallet will ask you to approve twice: once to create the invoice, then to pay it."
+                    : "You’ll review and approve the payment in your wallet."
                   : `Connect a Stacks wallet such as Leather or Xverse to pay ${amountLabel}.`}
               </p>
             </>
