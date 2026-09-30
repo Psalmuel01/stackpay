@@ -122,7 +122,6 @@ export default function MerchantAuthGate({
       aria-labelledby="sign-in-title"
       className="relative isolate py-2 sm:py-10"
     >
-      <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
       <div className="card relative mx-auto w-full max-w-[460px] overflow-hidden">
         <div aria-hidden="true" className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-accent/70 to-transparent" />
         <div className="px-5 pb-6 pt-7 sm:px-8 sm:pb-8 sm:pt-9">

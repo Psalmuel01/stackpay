@@ -16,7 +16,6 @@ export default function StatusScreen({
 }) {
   return (
     <main id="main-content" className="relative flex min-h-screen flex-col overflow-hidden bg-canvas">
-      <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-[640px]" />
       <header className="relative mx-auto flex w-full max-w-6xl items-center px-4 py-5 sm:px-6">
         <Link href="/" aria-label="StackPay home" className="rounded-control"><Logo size={32} /></Link>
       </header>

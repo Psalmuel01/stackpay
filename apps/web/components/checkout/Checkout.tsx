@@ -20,7 +20,6 @@ export function CheckoutShell({
 }) {
   return (
     <main id="main-content" className="relative flex min-h-screen flex-col overflow-hidden bg-canvas">
-      <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-[520px]" />
       <div className="relative mx-auto flex w-full max-w-[520px] flex-1 flex-col px-4 pb-8 pt-8 sm:pt-16">
         {merchantName ? (
           <header className="mb-5 flex items-center gap-3 px-1">

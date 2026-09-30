@@ -472,7 +472,6 @@ export default function HomePage() {
       <main id="main-content" className="overflow-x-clip">
         {/* Hero ------------------------------------------------------------ */}
         <section className="relative border-b border-line pb-20 sm:pb-28">
-          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-[900px]" />
           <div className="relative mx-auto max-w-6xl px-4 pt-14 sm:px-6 sm:pt-24">
             <div className="mx-auto max-w-4xl text-center">
               <FadeIn delay={0.1}>
@@ -677,7 +676,6 @@ export default function HomePage() {
         {/* Closing CTA ----------------------------------------------------- */}
         <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 md:pb-28">
           <div className="relative overflow-hidden rounded-card border border-line-strong bg-panel px-6 py-12 text-center sm:px-12 md:py-16">
-            <div aria-hidden="true" className="bg-grid bg-grid-fine pointer-events-none absolute inset-0" />
             <div className="relative">
               <FadeIn>
                 <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-fg md:text-5xl">

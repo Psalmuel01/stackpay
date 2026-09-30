@@ -690,24 +690,6 @@ html[data-theme="light"] {
 }
 
 /* ==========================================================================
-   Decorative backdrop: a fine ledger grid that fades out from the top.
-   Place on an absolutely positioned, aria-hidden element behind content.
-   ========================================================================== */
-.bg-grid {
-  background-image:
-    linear-gradient(rgb(var(--fg) / 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--fg) / 0.07) 1px, transparent 1px);
-  background-size: 56px 56px;
-  background-position: center top;
-  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 0%, #000 20%, transparent 75%);
-  mask-image: radial-gradient(ellipse 70% 65% at 50% 0%, #000 20%, transparent 75%);
-}
-
-.bg-grid-fine {
-  background-size: 28px 28px;
-}
-
-/* ==========================================================================
    Marketing site helpers
    ========================================================================== */
 .section-pad {
@@ -1007,17 +989,6 @@ html[data-theme="light"] {
   position: relative;
   margin-left: var(--sidebar-width);
   padding: 32px 32px 64px;
-}
-
-/* The same ledger grid as the marketing site, fading out under the page header. */
-.console-backdrop {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 380px;
-  pointer-events: none;
-  opacity: 0.55;
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
-  mask-image: linear-gradient(to bottom, #000, transparent);
 }
 
 .console-content {
