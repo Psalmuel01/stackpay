@@ -1,5 +1,5 @@
 import { ApiError } from "./api-error";
-import { toAtomicAmount } from "../amounts";
+import { decimalToAtomic, sumDecimalAmounts, toAtomicAmount } from "../amounts";
 import {
   buildCreatePublicInvoiceFromLinkIntent,
   buildCreateInvoiceIntent,
@@ -136,7 +136,8 @@ type ChainhookInvoicePaidInput = {
 type PrepareSettlementInput = {
   walletAddress: string;
   currency: Currency;
-  amount: number;
+  /** Decimal amount; a string preserves full precision. */
+  amount: number | string;
   destination?: string | null;
 };
 
@@ -157,12 +158,6 @@ type DashboardActivityItem = {
   createdAt: string;
   href?: string;
 };
-
-const usdRates = {
-  sBTC: 68000,
-  STX: 2.4,
-  USDCx: 1,
-} as const;
 
 async function selectSingle<T extends Row>(table: string, query: Record<string, string>) {
   const rows = (await selectRows(table, {
@@ -302,7 +297,11 @@ export async function getMerchantProfileByWallet(walletAddress: string) {
 
 export async function getSettlementDashboard(walletAddress: string) {
   const merchant = await getMerchantProfileByWallet(walletAddress);
-  const processorBalances = await getProcessorBalances(walletAddress);
+  // History stays readable when the chain is down; balances are reported as unavailable, never zero.
+  const processorBalances = await getProcessorBalances(walletAddress).catch((error) => {
+    if (error instanceof ApiError && error.code === "chain_unavailable") return null;
+    throw error;
+  });
 
   if (!merchant) {
     return {
@@ -615,16 +614,23 @@ export async function prepareSettlementWithdrawal(input: PrepareSettlementInput)
     throw new Error("Complete your merchant profile before settling funds.");
   }
 
-  ensurePositiveAmount(input.amount, "amount");
+  if (!["STX", "sBTC", "USDCx"].includes(input.currency)) {
+    throw new ApiError(400, "invalid_currency", "currency must be STX, sBTC, or USDCx.");
+  }
+  let requestedUnits: bigint;
+  try {
+    requestedUnits = BigInt(toAtomicAmount(input.amount, input.currency));
+  } catch (error) {
+    throw new ApiError(400, "invalid_amount", error instanceof Error ? error.message : "Invalid amount.");
+  }
   const destination = input.destination?.trim() || String(merchant.settlement_wallet ?? walletAddress);
   if (!destination) {
     throw new Error("A settlement destination is required.");
   }
 
   const processorBalances = await getProcessorBalances(walletAddress);
-  const availableBalance = processorBalances[input.currency];
-  if (input.amount > availableBalance) {
-    throw new Error(`Insufficient ${input.currency} balance in the processor.`);
+  if (requestedUnits > decimalToAtomic(processorBalances[input.currency], input.currency)) {
+    throw new ApiError(400, "insufficient_balance", `Insufficient ${input.currency} balance in the processor.`);
   }
 
   const contractIntent =
@@ -1278,60 +1284,19 @@ function dedupeActivityEvents(events: Row[]) {
   return deduped;
 }
 
-function buildTrendPoints(invoices: Row[]) {
-  const byDay = new Map<string, number>();
-
-  for (let offset = 6; offset >= 0; offset -= 1) {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - offset);
-    const key = date.toISOString().slice(0, 10);
-    byDay.set(key, 0);
-  }
-
-  for (const invoice of invoices) {
-    if (invoice.status !== "paid") {
-      continue;
-    }
-
-    const paidAt = String(invoice.paid_at ?? invoice.created_at ?? "");
-    const key = paidAt.slice(0, 10);
-    if (!byDay.has(key)) {
-      continue;
-    }
-
-    byDay.set(
-      key,
-      (byDay.get(key) ?? 0) +
-        toNumericValue(invoice.amount) * usdRates[String(invoice.currency) as Currency]
-    );
-  }
-
-  return Array.from(byDay.entries()).map(([key, value]) => ({
-    label: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(`${key}T00:00:00Z`)),
-    value: Math.round(value),
-  }));
-}
-
 export async function getDashboardData(walletAddress: string) {
   const merchant = await getMerchantProfileByWallet(walletAddress);
   if (!merchant) {
     return {
       merchant: null,
-      processorBalances: {
-        STX: 0,
-        sBTC: 0,
-        USDCx: 0,
-      },
+      receivedTotals: { STX: "0", sBTC: "0", USDCx: "0" } as Record<Currency, string>,
       stats: {
-        totalVolumeUsd: 0,
         paidInvoices: 0,
         openInvoices: 0,
         activePaymentLinks: 0,
         multipayLinks: 0,
         universalQrActive: false,
       },
-      trendPoints: [] as Array<{ label: string; value: number }>,
       statusBreakdown: { paid: 0, pending: 0, expired: 0 },
       activity: [] as DashboardActivityItem[],
     };
@@ -1372,18 +1337,16 @@ export async function getDashboardData(walletAddress: string) {
   const paymentLinksById = new Map(
     paymentLinks.map((paymentLink) => [String(paymentLink.id), paymentLink] as const)
   );
-  const processorBalances = paidInvoices.reduce(
-    (sum, invoice) => {
-      const currency = String(invoice.currency) as Currency;
-      sum[currency] += toNumericValue(invoice.amount);
-      return sum;
-    },
-    {
-      STX: 0,
-      sBTC: 0,
-      USDCx: 0,
-    }
-  );
+  // Exact per-asset totals. No fiat valuation: there is no trustworthy, timestamped price source yet.
+  const receivedTotals = Object.fromEntries(
+    (["STX", "sBTC", "USDCx"] as const).map((currency) => [
+      currency,
+      sumDecimalAmounts(
+        paidInvoices.filter((invoice) => invoice.currency === currency).map((invoice) => String(invoice.amount)),
+        currency
+      ),
+    ])
+  ) as Record<Currency, string>;
 
   return {
     merchant: {
@@ -1393,18 +1356,14 @@ export async function getDashboardData(walletAddress: string) {
       slug: merchant.slug ?? "",
       settlement_wallet: merchant.settlement_wallet ?? walletAddress,
     },
-    processorBalances,
+    receivedTotals,
     stats: {
-      totalVolumeUsd: paidInvoices.reduce((sum, invoice) => {
-        return sum + toNumericValue(invoice.amount) * usdRates[String(invoice.currency) as Currency];
-      }, 0),
       paidInvoices: paidInvoices.length,
       openInvoices: pendingInvoices.length,
       activePaymentLinks: activePaymentLinks.length,
       multipayLinks: multipayLinks.length,
       universalQrActive: Boolean(universalQr),
     },
-    trendPoints: buildTrendPoints(invoices),
     statusBreakdown: {
       paid: paidInvoices.length,
       pending: pendingInvoices.length,

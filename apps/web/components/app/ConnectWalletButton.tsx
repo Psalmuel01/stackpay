@@ -3,11 +3,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Copy, Landmark, LogOut, Wallet } from "lucide-react";
 import { connectWallet, disconnectWallet, getConnectedWalletAddress, walletErrorMessage } from "@/lib/wallet-connection";
+import { formatDecimalAmount } from "@/lib/amounts";
 
+/** Exact decimal strings; null means the balance could not be read. */
 type WalletBalances = {
-  STX: number | null;
-  sBTC: number | null;
-  USDCx: number | null;
+  STX: string | null;
+  sBTC: string | null;
+  USDCx: string | null;
 };
 
 type MerchantProfile = {
@@ -20,15 +22,12 @@ function truncateAddress(address: string, start = 6, end = 4) {
   return `${address.slice(0, start)}…${address.slice(-end)}`;
 }
 
-function formatBalance(amount: number | null, symbol: "STX" | "sBTC" | "USDCx") {
+function formatBalance(amount: string | null, symbol: "STX" | "sBTC" | "USDCx") {
   if (amount === null) {
     return "Unavailable";
   }
 
-  return `${new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: symbol === "sBTC" ? 8 : 2,
-  }).format(amount)} ${symbol}`;
+  return `${formatDecimalAmount(amount, symbol)} ${symbol}`;
 }
 
 const menuItem =
@@ -229,7 +228,7 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
     );
   }
 
-  const balanceRows: Array<["STX" | "sBTC" | "USDCx", number | null]> = [
+  const balanceRows: Array<["STX" | "sBTC" | "USDCx", string | null]> = [
     ["sBTC", balances?.sBTC ?? null],
     ["STX", balances?.STX ?? null],
     ["USDCx", balances?.USDCx ?? null],

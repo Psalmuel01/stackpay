@@ -11,12 +11,18 @@ it("reports transferable sBTC rather than the first asset under its contract", a
       [`${tokenContracts.USDCx}::usdcx-token`]: { balance: "2000000" },
     },
   }) }));
-  expect(await getWalletBalances("ST000000000000000000002AMW42H")).toEqual({ STX: 1, sBTC: 1, USDCx: 2 });
+  expect(await getWalletBalances("ST000000000000000000002AMW42H")).toEqual({ STX: "1", sBTC: "1", USDCx: "2" });
 });
 it("does not treat locked-only holdings as spendable", async () => {
   vi.stubEnv("NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME", "sbtc-token");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({
     stx: { balance: "0" }, fungible_tokens: { [`${tokenContracts.sBTC}::sbtc-token-locked`]: { balance: "900000000" } },
   }) }));
-  expect((await getWalletBalances("ST000000000000000000002AMW42H")).sBTC).toBe(0);
+  expect((await getWalletBalances("ST000000000000000000002AMW42H")).sBTC).toBe("0");
+});
+it("keeps full precision for large balances", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+    stx: { balance: "123456789012345678901" }, fungible_tokens: {},
+  }) }));
+  expect((await getWalletBalances("ST000000000000000000002AMW42H")).STX).toBe("123456789012345.678901");
 });

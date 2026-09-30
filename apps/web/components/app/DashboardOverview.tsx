@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ArrowRight, Plus, FileText, Link2, QrCode, Check, Clock3, ArrowDownToLine, RefreshCw, BookOpen } from "lucide-react";
 import PageHeader from "./PageHeader";
 import TokenLogo from "@/components/TokenLogo";
+import { formatDecimalAmount } from "@/lib/amounts";
 type Currency = "sBTC" | "STX" | "USDCx";
 
 export type DashboardResponse = {
@@ -12,20 +13,19 @@ export type DashboardResponse = {
     slug?: string;
     settlement_wallet?: string | null;
   } | null;
-  processorBalances: {
-    STX: number;
-    sBTC: number;
-    USDCx: number;
+  /** Exact decimal totals of paid invoices per asset. */
+  receivedTotals: {
+    STX: string;
+    sBTC: string;
+    USDCx: string;
   };
   stats: {
-    totalVolumeUsd: number;
     paidInvoices: number;
     openInvoices: number;
     activePaymentLinks: number;
     multipayLinks: number;
     universalQrActive: boolean;
   };
-  trendPoints: Array<{ label: string; value: number }>;
   statusBreakdown: {
     paid: number;
     pending: number;
@@ -61,7 +61,7 @@ export default function DashboardOverview({ data, updatedAt, refreshing, onRefre
     </div>
     <section aria-labelledby="received-title" className="overview-panel received-panel">
       <div className="panel-heading"><div><h2 id="received-title">Payments received</h2><p>Total from paid invoices, before withdrawals.</p></div><Link href="/settlements" className="console-text-link">Withdraw funds <ArrowUpRight size={16} aria-hidden="true"/></Link></div>
-      <div className="received-grid">{assets.map(({ currency, description }) => <div className="received-asset" key={currency}><div className="asset-heading"><TokenLogo token={currency} size={28} /><span>{currency}</span><span className="asset-description">{description}</span></div><p className="received-value">{new Intl.NumberFormat("en-US", { maximumFractionDigits: currency === "sBTC" ? 8 : 6 }).format(data.processorBalances[currency])}<span>{currency}</span></p></div>)}</div>
+      <div className="received-grid">{assets.map(({ currency, description }) => <div className="received-asset" key={currency}><div className="asset-heading"><TokenLogo token={currency} size={28} /><span>{currency}</span><span className="asset-description">{description}</span></div><p className="received-value">{formatDecimalAmount(data.receivedTotals[currency], currency)}<span>{currency}</span></p></div>)}</div>
     </section>
     <div className="overview-stats">{[
       { label: "Paid invoices", value: data.stats.paidInvoices, detail: "Confirmed on-chain", icon: Check, href: "/invoices" },
