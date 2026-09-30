@@ -43,10 +43,27 @@ export function verifyWalletSignature(message: string, wallet: string, publicKey
     return publicKeyToAddress(publicKey, network) === wallet && verifyMessageSignatureRsv({ message, publicKey, signature });
   } catch { return false; }
 }
+/** Sessions are only valid for the app origin and network that issued them. */
+export function sessionAudience(request: Request) {
+  return `${appOrigin(request)}|${process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet"}`;
+}
+
+/** Best-effort client address for abuse throttling (set by the hosting proxy). */
+export function clientAddress(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+/** Shared fixed-window limiter backed by the database, so it holds across server instances. */
+export async function takeRateLimit(key: string, limit: number, windowSeconds: number) {
+  const allowed = await supabaseRequest("rpc/take_rate_limit", { method: "POST", body: { p_key: key, p_limit: limit, p_window_seconds: windowSeconds } });
+  if (allowed !== true) throw new ApiError(429, "rate_limited", "Too many requests. Wait a minute and try again.");
+}
+
 export async function getSessionWallet(request: Request) {
   const token = cookieValue(request, sessionCookie);
   if (!/^[0-9a-f]{64}$/.test(token)) return null;
-  const rows = await selectRows("wallet_sessions", { token_hash: `eq.${hashToken(token)}`, expires_at: `gt.${new Date().toISOString()}`, select: "wallet_address", limit: 1 });
+  const rows = await selectRows("wallet_sessions", { token_hash: `eq.${hashToken(token)}`, expires_at: `gt.${new Date().toISOString()}`, audience: `eq.${sessionAudience(request)}`, select: "wallet_address", limit: 1 });
   const wallet = rows?.[0]?.wallet_address;
   if (!wallet) return null;
   try { validateWallet(wallet); } catch { return null; }

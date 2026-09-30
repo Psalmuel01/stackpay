@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, Copy, Landmark, LogOut, Wallet } from "lucide-react";
+import { ChevronDown, Copy, Landmark, LogOut, MonitorX, Wallet } from "lucide-react";
 import { connectWallet, disconnectWallet, getConnectedWalletAddress, walletErrorMessage } from "@/lib/wallet-connection";
 import { formatDecimalAmount } from "@/lib/amounts";
 
@@ -151,10 +151,10 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
     } finally { setConnecting(false); }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (scope: "this" | "all" = "this") => {
     setConnectionError(null);
     try {
-      const response = await fetch("/api/auth/session", { method: "DELETE" });
+      const response = await fetch(scope === "all" ? "/api/auth/session?scope=all" : "/api/auth/session", { method: "DELETE" });
       if (!response.ok) {
         const payload = await response.json();
         throw new Error(payload.error?.message ?? "Could not sign out securely. Please try again.");
@@ -318,7 +318,11 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
               <Copy size={17} aria-hidden="true" className="text-muted" />
               Copy address
             </button>
-            <button type="button" onClick={handleDisconnect} className={`${menuItem} text-danger hover:bg-danger/10`}>
+            <button type="button" onClick={() => handleDisconnect("all")} className={`${menuItem} text-fg-2 hover:bg-subtle hover:text-fg`}>
+              <MonitorX size={17} aria-hidden="true" className="text-muted" />
+              Sign out of all devices
+            </button>
+            <button type="button" onClick={() => handleDisconnect()} className={`${menuItem} text-danger hover:bg-danger/10`}>
               <LogOut size={17} aria-hidden="true" />
               Sign out and disconnect
             </button>

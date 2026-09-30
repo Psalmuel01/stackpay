@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { processChainEventInbox } from "./chain-events";
 import { logEvent } from "./log";
+import { callRpc } from "./supabase-admin";
 
 /**
  * Background work runner. Invoked by a scheduler (for example Vercel Cron, which sends
@@ -24,6 +25,7 @@ export async function runJobs(): Promise<JobRunSummary> {
   const startedAt = Date.now();
   const summary: JobRunSummary = {};
   summary.chainEvents = await processChainEventInbox({ limit: 50 }).catch((error) => ({ error: error instanceof Error ? error.message : "failed" }));
+  summary.retention = await callRpc("purge_expired_auth_rows").catch(() => ({ error: "failed" }));
   summary.durationMs = Date.now() - startedAt;
   logEvent("jobs.run", { duration_ms: summary.durationMs as number });
   return summary;
