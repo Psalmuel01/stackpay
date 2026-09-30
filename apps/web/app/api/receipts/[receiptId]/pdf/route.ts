@@ -5,13 +5,13 @@ import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
 export async function GET(
   _request: Request,
-  context: { params: { receiptId: string } }
+  context: { params: Promise<{ receiptId: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return new Response("Supabase environment variables are missing.", { status: 503 });
   }
 
-  const receiptData = await getReceiptDetailsByReceiptId(context.params.receiptId, await getSessionWallet(_request));
+  const receiptData = await getReceiptDetailsByReceiptId((await context.params).receiptId, await getSessionWallet(_request));
   if (!receiptData) {
     return new Response("Receipt not found.", { status: 404 });
   }

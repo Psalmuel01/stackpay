@@ -139,7 +139,8 @@ export function v1Endpoint<Schema extends ZodTypeAny | undefined = undefined>(
   options: { scope: ApiScope; schema?: Schema; idempotent?: boolean },
   handler: Handler<Schema extends ZodTypeAny ? ZodInfer<Schema> : undefined>
 ) {
-  return async (request: Request, route: { params?: Record<string, string> } = {}) => {
+  /** Matches Next.js 15 route handlers: (request, { params: Promise<…> }). */
+  return async (request: Request, route: { params: Promise<Record<string, string>> }) => {
     const requestId = newRequestId();
     const startedAt = Date.now();
     const url = new URL(request.url);
@@ -176,7 +177,7 @@ export function v1Endpoint<Schema extends ZodTypeAny | undefined = undefined>(
         if (claim.state === "mismatch") throw new V1Error(422, "idempotency_error", "idempotency_key_reused", "This Idempotency-Key was already used with a different request.");
         if (claim.state === "in_progress") throw new V1Error(409, "idempotency_error", "idempotency_key_in_use", "A request with this Idempotency-Key is still being processed. Retry shortly.");
         try {
-          const result = await handler(context, { body, request, params: route.params ?? {} });
+          const result = await handler(context, { body, request, params: (await route?.params) ?? {} });
           if ("raw" in result) throw new Error("Idempotent endpoints must return JSON.");
           status = result.status ?? 200;
           await callRpc("complete_idempotent_request", { p_id: claim.id, p_status: status, p_body: result.body });
@@ -194,7 +195,7 @@ export function v1Endpoint<Schema extends ZodTypeAny | undefined = undefined>(
         }
       }
 
-      const result = await handler(context, { body, request, params: route.params ?? {} });
+      const result = await handler(context, { body, request, params: (await route?.params) ?? {} });
       if ("raw" in result) {
         // Non-JSON responses (for example CSV) still carry the request id.
         status = result.raw.status;

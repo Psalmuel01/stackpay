@@ -7,7 +7,7 @@ import { syncInvoiceCreationTx } from "@/lib/server/stacks-api";
 
 export async function POST(
   request: Request,
-  context: { params: { slug: string } }
+  context: { params: Promise<{ slug: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
@@ -19,10 +19,10 @@ export async function POST(
       return jsonError(400, "invalid_request", "txId is required.");
     }
 
-    const prepared = await preparePublicInvoiceFromLink({ ...payload, slug: context.params.slug });
+    const prepared = await preparePublicInvoiceFromLink({ ...payload, slug: (await context.params).slug });
     const sync = await syncInvoiceCreationTx(payload.txId, prepared.contractIntent);
     logTransactionResponse("payment-link.invoice.confirm.sync", {
-      slug: context.params.slug,
+      slug: (await context.params).slug,
       txId: payload.txId,
       sync,
     });
@@ -49,7 +49,7 @@ export async function POST(
     }
 
     const invoice = await confirmPublicInvoiceCreation({
-      slug: context.params.slug,
+      slug: (await context.params).slug,
       txId: sync.txId,
       onchainId: sync.onchainId,
       amount: payload.amount,

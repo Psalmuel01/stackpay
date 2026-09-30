@@ -7,12 +7,13 @@ import { ApiError } from "./api-error";
 export function consoleRoute(
   handler: (merchant: { id: string; wallet: string }, request: Request, params: Record<string, string>) => Promise<{ status?: number; body: unknown }>
 ) {
-  return async (request: Request, route: { params?: Record<string, string> } = {}) => {
+  /** Matches Next.js 15 route handlers: (request, { params: Promise<…> }). */
+  return async (request: Request, route: { params: Promise<Record<string, string>> }) => {
     try {
       const wallet = await requireMerchant(request);
       const profile = await getMerchantProfileByWallet(wallet);
       if (!profile) throw new ApiError(409, "merchant_profile_required", "Complete your merchant profile first.");
-      const result = await handler({ id: String(profile.id), wallet }, request, route.params ?? {});
+      const result = await handler({ id: String(profile.id), wallet }, request, (await route?.params) ?? {});
       const response = jsonOk(result.body, { status: result.status ?? 200 });
       response.headers.set("Cache-Control", "no-store");
       return response;

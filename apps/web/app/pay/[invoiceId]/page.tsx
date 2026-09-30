@@ -1,7 +1,7 @@
 "use client";
 import { toAtomicAmount } from "@/lib/amounts";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 import { CircleAlert, CircleCheck, Clock3, Download, FileQuestion } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import StatusBadge from "@/components/app/StatusBadge";
@@ -113,8 +113,10 @@ type PaymentPhase = "idle" | "preparing-signing" | "preparing" | "signing" | "co
 export default function HostedPaymentPage({
   params,
 }: {
-  params: { invoiceId: string };
+  params: Promise<{ invoiceId: string }>;
 }) {
+  // Next 15 passes route params as a Promise.
+  const { invoiceId } = use(params);
   const [invoice, setInvoice] = useState<RemoteInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -150,7 +152,7 @@ export default function HostedPaymentPage({
 
     void (async () => {
       for (let attempt = 0; attempt < 10; attempt += 1) {
-        const response = await fetch(`/api/invoices/${params.invoiceId}`, { cache: "no-store" });
+        const response = await fetch(`/api/invoices/${invoiceId}`, { cache: "no-store" });
 
         if (response.ok) {
           const payload = await response.json();
@@ -176,7 +178,7 @@ export default function HostedPaymentPage({
     return () => {
       cancelled = true;
     };
-  }, [params.invoiceId]);
+  }, [invoiceId]);
 
   const effectiveStatus = useMemo(() => getEffectiveStatus(invoice, nowMs), [invoice, nowMs]);
   const merchantName =

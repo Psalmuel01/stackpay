@@ -73,7 +73,7 @@ describe("reconciliation export", () => {
   });
 
   it("requires an API key on the API route", async () => {
-    const response = await apiExport(new Request("https://pay.example.com/api/v1/reports/reconciliation"));
+    const response = await apiExport(new Request("https://pay.example.com/api/v1/reports/reconciliation"), { params: Promise.resolve({}) });
     expect(response.status).toBe(401);
   });
 });

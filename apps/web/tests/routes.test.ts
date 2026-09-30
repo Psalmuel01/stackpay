@@ -79,13 +79,13 @@ describe("confirmation routes", () => {
     expect(service.confirmInvoiceCreation).not.toHaveBeenCalled();
   });
   it("does not accept a supplied link id without chain verification", async () => {
-    const response = await confirmLink(request("/api/payment-links/id/chain", { onchainLinkId: "LNK_fake" }), { params: { paymentLinkId: "id" } });
+    const response = await confirmLink(request("/api/payment-links/id/chain", { onchainLinkId: "LNK_fake" }), { params: Promise.resolve({ paymentLinkId: "id" }) });
     expect(response.status).toBe(400); expect(service.confirmPaymentLinkChain).not.toHaveBeenCalled();
   });
   it("checks link ownership and does not update a pending link", async () => {
     service.getOwnedPaymentLinkIntent.mockResolvedValue({ contractId: architecture, functionName: "create-multipay-link", network: "testnet", arguments: [], sender: wallet });
     fetchMock.mockResolvedValue(Response.json({ tx_status: "pending" }));
-    expect((await confirmLink(request("/api/payment-links/id/chain", { txId }), { params: { paymentLinkId: "id" } })).status).toBe(200);
+    expect((await confirmLink(request("/api/payment-links/id/chain", { txId }), { params: Promise.resolve({ paymentLinkId: "id" }) })).status).toBe(200);
     expect(service.getOwnedPaymentLinkIntent).toHaveBeenCalledWith("id", wallet);
     expect(service.confirmPaymentLinkChain).not.toHaveBeenCalled();
   });

@@ -7,7 +7,7 @@ import { syncInvoiceCreationTx } from "@/lib/server/stacks-api";
 
 export async function POST(
   request: Request,
-  context: { params: { paymentLinkId: string } }
+  context: { params: Promise<{ paymentLinkId: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
@@ -18,19 +18,19 @@ export async function POST(
     const payload = await request.json();
     payload.walletAddress = authenticatedWallet;
     if (!payload.txId) return jsonError(400, "invalid_request", "txId is required.");
-    const intent = await getOwnedPaymentLinkIntent(context.params.paymentLinkId, authenticatedWallet);
+    const intent = await getOwnedPaymentLinkIntent((await context.params).paymentLinkId, authenticatedWallet);
     const sync = await syncInvoiceCreationTx(payload.txId, intent);
     if (sync.status === "pending") return jsonOk({ onchain_link_id: null, sync: { status: "pending" } });
     if (sync.status !== "success" || !sync.onchainId) return jsonError(422, "payment_link_chain_failed", "Payment link transaction failed.");
     const onchainLinkId = sync.onchainId;
 
     const paymentLink = await confirmPaymentLinkChain({
-      id: context.params.paymentLinkId,
+      id: (await context.params).paymentLinkId,
       txId: sync.txId,
       onchainId: onchainLinkId,
     });
     logTransactionResponse("payment-link.chain.response", {
-      paymentLinkId: context.params.paymentLinkId,
+      paymentLinkId: (await context.params).paymentLinkId,
       paymentLink,
     });
     return jsonOk(paymentLink);

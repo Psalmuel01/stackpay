@@ -11,9 +11,17 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("../lib/server/supabase-admin", () => db);
 
-import { POST as createInvoice, GET as listInvoices } from "../app/api/v1/invoices/route";
-import { GET as getInvoice } from "../app/api/v1/invoices/[id]/route";
-import { POST as cancelInvoice } from "../app/api/v1/invoices/[id]/cancel/route";
+import * as invoicesRoute from "../app/api/v1/invoices/route";
+import * as invoiceRoute from "../app/api/v1/invoices/[id]/route";
+import * as cancelRoute from "../app/api/v1/invoices/[id]/cancel/route";
+
+// Next.js 15 passes route params as a Promise; adapt the handlers for concise calls.
+const noParams = { params: Promise.resolve({}) };
+const withParams = (params: Record<string, string>) => ({ params: Promise.resolve(params) });
+const createInvoice = (request: Request) => invoicesRoute.POST(request, noParams);
+const listInvoices = (request: Request) => invoicesRoute.GET(request, noParams);
+const getInvoice = (request: Request, context: { params: Record<string, string> }) => invoiceRoute.GET(request, withParams(context.params));
+const cancelInvoice = (request: Request, context: { params: Record<string, string> }) => cancelRoute.POST(request, withParams(context.params));
 import { hashApiKey } from "../lib/server/api/v1";
 
 const KEY = "sk_test_" + "k".repeat(43);

@@ -53,7 +53,7 @@ describe("API key administration", () => {
 
   it("rotates with a 24 hour grace period for the old key", async () => {
     db.selectRows.mockImplementation(async (table: string) => table === "merchant_profiles" ? [{ id: MERCHANT }] : [{ id: "key_old", name: "Backend", scopes: ["invoices:read"], revoked_at: null, expires_at: null }]);
-    const response = await rotate(new Request("https://stackpay.test/api/api-keys/key_old/rotate", { method: "POST" }), { params: { id: "key_old" } });
+    const response = await rotate(new Request("https://stackpay.test/api/api-keys/key_old/rotate", { method: "POST" }), { params: Promise.resolve({ id: "key_old" }) });
     const { data } = await response.json();
     expect(data.secret).toMatch(/^sk_test_/);
     const [, filter, patch] = db.patchRows.mock.calls[0];

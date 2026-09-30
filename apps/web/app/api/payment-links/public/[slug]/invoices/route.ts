@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
 export async function POST(
   request: Request,
-  context: { params: { slug: string } }
+  context: { params: Promise<{ slug: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
@@ -14,7 +14,7 @@ export async function POST(
   try {
     const payload = await request.json();
     const result = await preparePublicInvoiceFromLink({
-      slug: context.params.slug,
+      slug: (await context.params).slug,
       amount: payload.amount,
       currency: payload.currency,
       customerName: payload.customerName,

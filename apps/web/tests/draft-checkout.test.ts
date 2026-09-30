@@ -22,7 +22,7 @@ beforeEach(() => {
 
 describe("draft checkout", () => {
   it("builds the customer transaction from the merchant's Universal link with the draft's exact terms", async () => {
-    const response = await prepare(post(`/api/invoices/${ID}/checkout`), { params: { invoiceId: ID } });
+    const response = await prepare(post(`/api/invoices/${ID}/checkout`), { params: Promise.resolve({ invoiceId: ID }) });
     const { data } = await response.json();
     expect(response.status).toBe(200);
     expect(data.contractIntent.functionName).toBe("create-public-invoice-from-link");
@@ -32,15 +32,15 @@ describe("draft checkout", () => {
 
   it("refuses expired and non-draft invoices", async () => {
     db.selectRows.mockImplementation(async (table: string) => (table === "invoices" ? [{ ...draft, expires_at: new Date(Date.now() + 10_000).toISOString() }] : []));
-    expect((await prepare(post(`/api/invoices/${ID}/checkout`), { params: { invoiceId: ID } })).status).toBe(409);
+    expect((await prepare(post(`/api/invoices/${ID}/checkout`), { params: Promise.resolve({ invoiceId: ID }) })).status).toBe(409);
     db.selectRows.mockImplementation(async (table: string) => (table === "invoices" ? [{ ...draft, status: "canceled" }] : []));
-    expect((await prepare(post(`/api/invoices/${ID}/checkout`), { params: { invoiceId: ID } })).status).toBe(409);
+    expect((await prepare(post(`/api/invoices/${ID}/checkout`), { params: Promise.resolve({ invoiceId: ID }) })).status).toBe(409);
   });
 
   it("verifies the exact transaction on-chain before attaching it", async () => {
     chain.syncInvoiceCreationTx.mockResolvedValue({ status: "success", txId, onchainId: "INV_77", confirmedAt: 1700000000 });
     db.callRpc.mockResolvedValue({ outcome: "attached" });
-    const response = await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 3600 }), { params: { invoiceId: ID } });
+    const response = await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 3600 }), { params: Promise.resolve({ invoiceId: ID }) });
     expect(await response.json()).toMatchObject({ data: { status: "success", onchainInvoiceId: "INV_77" } });
     const expected = chain.syncInvoiceCreationTx.mock.calls[0][1];
     expect(expected.arguments.map((a: { value: string }) => a.value)).toEqual(["LNK_9", "USDCx", "25000000", "3600", ID]);
@@ -50,15 +50,15 @@ describe("draft checkout", () => {
   it("does not attach while the transaction is pending or after it failed", async () => {
     chain.syncInvoiceCreationTx.mockResolvedValueOnce({ status: "pending" }).mockResolvedValueOnce({ status: "abort_by_response" });
     for (const status of ["pending", "abort_by_response"]) {
-      const response = await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 3600 }), { params: { invoiceId: ID } });
+      const response = await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 3600 }), { params: Promise.resolve({ invoiceId: ID }) });
       expect((await response.json()).data.status).toBe(status);
     }
     expect(db.callRpc).not.toHaveBeenCalled();
   });
 
   it("rejects malformed input and unknown ids", async () => {
-    expect((await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId: "nope", expiresInSeconds: 3600 }), { params: { invoiceId: ID } })).status).toBe(400);
-    expect((await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 5 }), { params: { invoiceId: ID } })).status).toBe(400);
-    expect((await prepare(post("/api/invoices/INV_x/checkout"), { params: { invoiceId: "INV_x" } })).status).toBe(404);
+    expect((await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId: "nope", expiresInSeconds: 3600 }), { params: Promise.resolve({ invoiceId: ID }) })).status).toBe(400);
+    expect((await confirm(post(`/api/invoices/${ID}/checkout/confirm`, { txId, expiresInSeconds: 5 }), { params: Promise.resolve({ invoiceId: ID }) })).status).toBe(400);
+    expect((await prepare(post("/api/invoices/INV_x/checkout"), { params: Promise.resolve({ invoiceId: "INV_x" }) })).status).toBe(404);
   });
 });

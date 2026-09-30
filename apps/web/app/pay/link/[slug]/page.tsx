@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 import { CircleAlert, CircleCheck, Link2Off, Minus, Plus } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import { type Currency, formatCurrencyAmount } from "@/lib/format";
@@ -67,8 +67,10 @@ function isValidEmail(value: string) {
 export default function PublicPaymentLinkPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
+  // Next 15 passes route params as a Promise.
+  const { slug } = use(params);
   const router = useRouter();
   const [remoteLink, setRemoteLink] = useState<RemotePaymentLink | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(true);
@@ -95,7 +97,7 @@ export default function PublicPaymentLinkPage({
     let cancelled = false;
     setLoadingRemote(true);
 
-    fetch(`/api/payment-links/public/${params.slug}`, { cache: "no-store" })
+    fetch(`/api/payment-links/public/${slug}`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           return null;
@@ -117,7 +119,7 @@ export default function PublicPaymentLinkPage({
     return () => {
       cancelled = true;
     };
-  }, [params.slug]);
+  }, [slug]);
 
   const availableCurrencies = remoteLink?.accepted_currencies ?? [];
   const suggestedAmounts = useMemo(
@@ -188,7 +190,7 @@ export default function PublicPaymentLinkPage({
     setPhase("signing");
 
     try {
-      const response = await fetch(`/api/payment-links/public/${params.slug}/invoices`, {
+      const response = await fetch(`/api/payment-links/public/${slug}/invoices`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -221,7 +223,7 @@ export default function PublicPaymentLinkPage({
           try {
             for (let attempt = 0; attempt < 20; attempt += 1) {
               const confirmResponse = await fetch(
-                `/api/payment-links/public/${params.slug}/invoices/confirm`,
+                `/api/payment-links/public/${slug}/invoices/confirm`,
                 {
                   method: "POST",
                   headers: {
