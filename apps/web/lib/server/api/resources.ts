@@ -7,11 +7,13 @@ import {
   INVOICE_COLUMNS,
   PAYMENT_LINK_COLUMNS,
   RECEIPT_COLUMNS,
+  REFUND_COLUMNS,
   SETTLEMENT_COLUMNS,
   serializeEvent,
   serializeInvoice,
   serializePaymentLink,
   serializeReceipt,
+  serializeRefund,
   serializeSettlement,
 } from "./objects";
 
@@ -162,6 +164,21 @@ export async function retrieveReceipt(context: ApiContext, id: string) {
   if (!row) throw notFound("receipt", id);
   const invoices = await invoicesById([String(row.invoice_id)]);
   return serializeReceipt(row, context, invoices.get(String(row.invoice_id)));
+}
+
+// Refunds (read-only: refunds are signed by the merchant's wallet in the console) ------------------
+
+export async function listRefunds(context: ApiContext, page: Page) {
+  const rows = (await selectRows("refunds", { select: REFUND_COLUMNS, merchant_id: `eq.${context.merchantId}`, ...pageQuery(page) })) as Row[];
+  const invoices = await invoicesById(rows.slice(0, page.limit).map((row) => String(row.invoice_id)));
+  return listResponse(rows, page, (row) => serializeRefund(row, context, invoices.get(String(row.invoice_id))), "/api/v1/refunds");
+}
+
+export async function retrieveRefund(context: ApiContext, id: string) {
+  const row = await one("refunds", { select: REFUND_COLUMNS, public_id: `eq.${id}`, merchant_id: `eq.${context.merchantId}` });
+  if (!row) throw notFound("refund", id);
+  const invoices = await invoicesById([String(row.invoice_id)]);
+  return serializeRefund(row, context, invoices.get(String(row.invoice_id)));
 }
 
 // Settlements (read-only: API keys never authorize spending) -------------------------------------

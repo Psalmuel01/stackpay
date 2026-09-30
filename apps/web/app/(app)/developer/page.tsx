@@ -13,6 +13,7 @@ const SCOPES = [
   ["payment_links:read", "Read payment links"],
   ["payment_links:write", "Create payment links"],
   ["receipts:read", "Read receipts"],
+  ["refunds:read", "Read refunds"],
   ["settlements:read", "Read settlements"],
   ["events:read", "Read events"],
   ["webhooks:read", "Read webhook endpoints and deliveries"],

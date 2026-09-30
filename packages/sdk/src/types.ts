@@ -116,6 +116,25 @@ export interface PaymentLinkCreateParams {
   success_url?: string;
 }
 
+/** A verified on-chain transfer from the merchant back to the invoice's payer. */
+export interface Refund {
+  id: string;
+  object: "refund";
+  livemode: boolean;
+  invoice: string | null;
+  onchain_invoice_id: string | null;
+  amount: string;
+  amount_units: string;
+  currency: Currency;
+  /** The original payer's address. */
+  recipient: string;
+  reason: string;
+  tx_id: string;
+  block_height: number | null;
+  metadata: Metadata;
+  created_at: string;
+}
+
 export interface Receipt {
   id: string;
   object: "receipt";

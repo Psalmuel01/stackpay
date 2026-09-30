@@ -14,6 +14,8 @@ vi.mock("../lib/server/supabase-admin", () => db);
 import * as invoicesRoute from "../app/api/v1/invoices/route";
 import * as invoiceRoute from "../app/api/v1/invoices/[id]/route";
 import * as cancelRoute from "../app/api/v1/invoices/[id]/cancel/route";
+import * as refundsRoute from "../app/api/v1/refunds/route";
+import * as refundRoute from "../app/api/v1/refunds/[id]/route";
 
 // Next.js 15 passes route params as a Promise; adapt the handlers for concise calls.
 const noParams = { params: Promise.resolve({}) };
@@ -222,6 +224,26 @@ describe("idempotency", () => {
     db.selectRows.mockImplementation(async (table: string) => (table === "merchant_profiles" ? [{ id: MERCHANT }] : []));
     await createInvoice(call("POST", "/api/v1/invoices", valid, { "idempotency-key": "k" }));
     expect(db.callRpc).toHaveBeenCalledWith("release_idempotent_request", { p_id: 7 });
+  });
+});
+
+describe("refunds", () => {
+  const REFUND = "rfd_" + "c".repeat(24);
+  const refundRow = { id: "r1", public_id: REFUND, invoice_id: "row-1", amount: 4, amount_text: "4.00000000", currency: "USDCx", recipient: "ST1PAYER", reason: "Damaged", tx_id: "0xabc", block_height: 812, created_at: "2026-10-05T00:00:00.000000+00:00" };
+
+  it("requires the refunds:read scope", async () => {
+    const response = await refundsRoute.GET(call("GET", "/api/v1/refunds"), noParams);
+    expect(response.status).toBe(403);
+  });
+
+  it("lists and retrieves the key's merchant's verified refunds with exact amounts", async () => {
+    rpc.authenticate_api_key = key(["refunds:read"]);
+    db.selectRows.mockImplementation(async (table: string) => (table === "refunds" ? [refundRow] : table === "invoices" ? [draftRow({ status: "paid", onchain_invoice_id: "INV_1" })] : []));
+    const list = await (await refundsRoute.GET(call("GET", "/api/v1/refunds"), noParams)).json();
+    expect(list.data[0]).toMatchObject({ id: REFUND, object: "refund", invoice: INVOICE_ID, amount: "4", amount_units: "4000000", recipient: "ST1PAYER", tx_id: "0xabc", metadata: { orderId: "382" } });
+    const one = await refundRoute.GET(call("GET", `/api/v1/refunds/${REFUND}`), withParams({ id: REFUND }));
+    expect(one.status).toBe(200);
+    expect(db.selectRows).toHaveBeenCalledWith("refunds", expect.objectContaining({ public_id: `eq.${REFUND}`, merchant_id: `eq.${MERCHANT}` }));
   });
 });
 

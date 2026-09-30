@@ -11,6 +11,7 @@ type Row = Record<string, any>;
 /** Column list for PostgREST that returns numeric amounts as text (no floating point). */
 export const INVOICE_COLUMNS = "*,amount_text:amount::text,refunded_text:refunded_amount::text";
 export const RECEIPT_COLUMNS = "*,amount_text:amount::text";
+export const REFUND_COLUMNS = "*,amount_text:amount::text";
 export const SETTLEMENT_COLUMNS = "*,amount_text:amount::text";
 export const PAYMENT_LINK_COLUMNS = "*,default_amount_text:default_amount::text";
 
@@ -91,6 +92,26 @@ export function serializeReceipt(row: Row, context: { environment: ApiEnvironmen
     block_height: row.block_height ?? null,
     paid_at: row.paid_at,
     orphaned_at: row.orphaned_at ?? null,
+    metadata: invoice?.metadata ?? {},
+    created_at: row.created_at,
+  };
+}
+
+/** A verified on-chain refund: a transfer from the merchant back to the invoice's payer. */
+export function serializeRefund(row: Row, context: { environment: ApiEnvironment }, invoice?: Row | null) {
+  const currency = row.currency as PaymentCurrency;
+  return {
+    id: row.public_id,
+    object: "refund",
+    livemode: context.environment === "live",
+    invoice: invoice?.public_id ?? null,
+    onchain_invoice_id: invoice?.onchain_invoice_id ?? null,
+    ...money(row.amount_text ?? row.amount, currency),
+    currency,
+    recipient: row.recipient,
+    reason: row.reason ?? "",
+    tx_id: row.tx_id,
+    block_height: row.block_height ?? null,
     metadata: invoice?.metadata ?? {},
     created_at: row.created_at,
   };

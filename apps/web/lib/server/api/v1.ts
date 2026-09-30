@@ -20,6 +20,7 @@ export const API_SCOPES = [
   "payment_links:read",
   "payment_links:write",
   "receipts:read",
+  "refunds:read",
   "settlements:read",
   "events:read",
   "webhooks:read",

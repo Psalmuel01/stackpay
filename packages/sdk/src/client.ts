@@ -11,6 +11,7 @@ import type {
   PaymentLink,
   PaymentLinkCreateParams,
   Receipt,
+  Refund,
   RequestOptions,
   Settlement,
   WebhookDelivery,
@@ -47,6 +48,7 @@ export class StackPay {
   readonly invoices: Invoices;
   readonly paymentLinks: PaymentLinks;
   readonly receipts: Receipts;
+  readonly refunds: Refunds;
   readonly settlements: Settlements;
   readonly events: Events;
   readonly webhookEndpoints: WebhookEndpoints;
@@ -77,6 +79,7 @@ export class StackPay {
     this.invoices = new Invoices(this);
     this.paymentLinks = new PaymentLinks(this);
     this.receipts = new Receipts(this);
+    this.refunds = new Refunds(this);
     this.settlements = new Settlements(this);
     this.events = new Events(this);
     this.webhookEndpoints = new WebhookEndpoints(this);
@@ -217,6 +220,20 @@ class Receipts {
   }
   listAll(params: Omit<ListParams, "starting_after"> = {}) {
     return this.client.paginate<Receipt>("/receipts", { ...params });
+  }
+}
+
+/** Refunds are signed by the merchant's wallet in the console; the API exposes the verified record. */
+class Refunds {
+  constructor(private readonly client: StackPay) {}
+  retrieve(refundId: string, options?: RequestOptions) {
+    return this.client.request<Refund>("GET", `/refunds/${id(refundId, "refundId")}`, undefined, undefined, options);
+  }
+  list(params: ListParams = {}, options?: RequestOptions) {
+    return this.client.request<List<Refund>>("GET", "/refunds", undefined, { ...params }, options);
+  }
+  listAll(params: Omit<ListParams, "starting_after"> = {}) {
+    return this.client.paginate<Refund>("/refunds", { ...params });
   }
 }
 
