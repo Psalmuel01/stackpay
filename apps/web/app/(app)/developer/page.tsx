@@ -1,10 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import GlassCard from "@/components/GlassCard";
+import { KeyRound, RefreshCw, Send, Webhook } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
+import StatusBadge from "@/components/app/StatusBadge";
 import { apiResources, webhookEvents } from "@stackpay/integrations";
 import { useDemo } from "@/components/app/DemoProvider";
+
+const deliveryLabel: Record<string, string> = {
+  delivered: "Delivered",
+  pending: "Pending",
+  failed: "Failed",
+};
+
+const methodTone: Record<string, string> = {
+  GET: "border-info/25 bg-info/10 text-info",
+  POST: "border-success/25 bg-success/10 text-success",
+};
+
+function MethodTag({ method }: { method: string }) {
+  return (
+    <span
+      className={`inline-flex min-w-[52px] justify-center rounded-md border px-2 py-0.5 font-mono text-xs font-semibold ${methodTone[method] ?? "border-line-strong bg-subtle text-fg-2"
+        }`}
+    >
+      {method}
+    </span>
+  );
+}
 
 export default function DeveloperPage() {
   const { state, actions } = useDemo();
@@ -12,117 +35,167 @@ export default function DeveloperPage() {
   const [selectedEvent, setSelectedEvent] = useState("invoice.paid");
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
-        title="Developer Tools"
-        subtitle="Rotate demo keys, test webhook delivery, and inspect the integration surface that the real API and indexer will mirror."
+        title="Developer tools"
+        subtitle="Try API keys, webhook deliveries, and the REST endpoints with sample data. The live API follows the same shape."
       />
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <GlassCard>
-          <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">API keys</div>
-          <div className="space-y-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <div className="text-xs text-white/40">Secret key</div>
-              <div className="mt-1 font-mono text-xs text-white/70">{state.merchant.apiKey}</div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="card overflow-hidden">
+          <div className="card-header">
+            <div>
+              <h2 className="card-title">API keys</h2>
+              <p className="card-description">Keep these secret. Rotating a key stops the old one working.</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <div className="text-xs text-white/40">Webhook signing secret</div>
-              <div className="mt-1 font-mono text-xs text-white/70">{state.merchant.webhookSecret}</div>
+            <KeyRound size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-muted" />
+          </div>
+          <div className="space-y-5 p-5 sm:p-6">
+            <div>
+              <p className="label">Secret key</p>
+              <div className="well flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="kbd-copy min-w-0">{state.merchant.apiKey}</span>
+                <button type="button" onClick={() => actions.rotateApiKey()} className="btn btn-secondary btn-sm shrink-0">
+                  <RefreshCw size={14} aria-hidden="true" />
+                  Rotate
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => actions.rotateApiKey()}
-                className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs text-white/70"
-              >
-                Rotate key
-              </button>
-              <button
-                onClick={() => actions.rotateWebhookSecret()}
-                className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs text-white/70"
-              >
-                Rotate secret
-              </button>
+            <div>
+              <p className="label">Webhook signing secret</p>
+              <div className="well flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="kbd-copy min-w-0">{state.merchant.webhookSecret}</span>
+                <button type="button" onClick={() => actions.rotateWebhookSecret()} className="btn btn-secondary btn-sm shrink-0">
+                  <RefreshCw size={14} aria-hidden="true" />
+                  Rotate
+                </button>
+              </div>
+              <p className="hint">Use this to verify that webhook requests really came from StackPay.</p>
             </div>
           </div>
-        </GlassCard>
+        </section>
 
-        <GlassCard>
-          <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">Webhooks</div>
-          <div className="space-y-3 text-sm text-white/70">
-            <input
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70 outline-none"
-              value={webhookTarget}
-              onChange={(event) => setWebhookTarget(event.target.value)}
-            />
-            <select
-              value={selectedEvent}
-              onChange={(event) => setSelectedEvent(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70 outline-none"
-            >
-              {webhookEvents.map((event) => (
-                <option key={event} value={event}>
-                  {event}
-                </option>
-              ))}
-            </select>
+        <section className="card overflow-hidden">
+          <div className="card-header">
+            <div>
+              <h2 className="card-title">Test a webhook</h2>
+              <p className="card-description">Send a sample event to your endpoint and check the delivery log.</p>
+            </div>
+            <Webhook size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-muted" />
+          </div>
+          <div className="space-y-5 p-5 sm:p-6">
+            <div>
+              <label htmlFor="webhook-target" className="label">Endpoint URL</label>
+              <input
+                id="webhook-target"
+                type="url"
+                inputMode="url"
+                className="field"
+                placeholder="https://example.com/webhooks/stackpay"
+                value={webhookTarget}
+                onChange={(event) => setWebhookTarget(event.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="webhook-event" className="label">Event</label>
+              <select
+                id="webhook-event"
+                value={selectedEvent}
+                onChange={(event) => setSelectedEvent(event.target.value)}
+                className="field font-mono text-[15px]"
+              >
+                {webhookEvents.map((event) => (
+                  <option key={event} value={event}>
+                    {event}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
+              type="button"
               onClick={() => {
                 actions.updateMerchantProfile({ webhookUrl: webhookTarget });
                 actions.sendWebhookTest(selectedEvent, webhookTarget);
               }}
-              className="rounded-full border border-white/20 bg-white px-5 py-2 text-sm font-semibold text-black"
+              className="btn btn-primary w-full sm:w-auto"
             >
+              <Send size={16} aria-hidden="true" />
               Send test event
             </button>
           </div>
-        </GlassCard>
+        </section>
       </div>
 
-      <GlassCard className="mt-6">
-        <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">SDK quick start</div>
-        <pre className="whitespace-pre-wrap font-mono text-xs text-white/70">
-{`npm install @stackpay/sdk\n\nimport { StackPay } from "@stackpay/sdk";\n\nconst client = new StackPay({ apiKey: process.env.STACKPAY_API_KEY });\nconst invoice = await client.invoices.create({ amount: 0.012, currency: "sBTC" });`}
-        </pre>
-      </GlassCard>
-
-      <GlassCard className="mt-6">
-        <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">REST surface</div>
-        <div className="space-y-3">
-          {apiResources.map((resource) => (
-            <div
-              key={`${resource.method}-${resource.path}`}
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"
-            >
-              <div className="font-mono text-xs text-accent">
-                {resource.method} {resource.path}
-              </div>
-              <div className="mt-2 text-sm text-white/70">{resource.purpose}</div>
-            </div>
-          ))}
+      <section className="card overflow-hidden">
+        <div className="card-header">
+          <div>
+            <h2 className="card-title">Delivery log</h2>
+            <p className="card-description">The most recent webhook attempts, newest first.</p>
+          </div>
         </div>
-      </GlassCard>
-
-      <GlassCard className="mt-6">
-        <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">Delivery log</div>
-        <div className="space-y-3">
-          {state.webhookDeliveries.map((delivery) => (
-            <div
-              key={delivery.id}
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-white">{delivery.event}</div>
-                  <div className="mt-1 text-xs text-white/45">{delivery.summary}</div>
+        {state.webhookDeliveries.length ? (
+          <ul className="divide-y divide-line">
+            {state.webhookDeliveries.map((delivery) => (
+              <li key={delivery.id} className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
+                <div className="min-w-0">
+                  <p className="break-all font-mono text-[14px] font-medium text-fg">{delivery.event}</p>
+                  <p className="mt-1 text-[14px] text-muted">{delivery.summary}</p>
                 </div>
-                <div className="text-xs uppercase tracking-[0.24em] text-white/45">
-                  {delivery.status}
-                </div>
-              </div>
+                <StatusBadge label={deliveryLabel[delivery.status] ?? delivery.status} className="shrink-0" />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <Webhook size={22} aria-hidden="true" />
             </div>
-          ))}
-        </div>
-      </GlassCard>
+            <h3>No deliveries yet</h3>
+            <p>Send a test event above and the attempt will show up here.</p>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <section className="card overflow-hidden">
+          <div className="card-header">
+            <div>
+              <h2 className="card-title">SDK quick start</h2>
+              <p className="card-description">Install the client and create your first invoice.</p>
+            </div>
+          </div>
+          <div className="p-5 sm:p-6">
+            <pre className="well overflow-x-auto p-4 font-mono text-[13.5px] leading-relaxed text-fg-2">
+              {`npm install @stackpay/sdk
+
+import { StackPay } from "@stackpay/sdk";
+
+const client = new StackPay({ apiKey: process.env.STACKPAY_API_KEY });
+const invoice = await client.invoices.create({ amount: 0.012, currency: "sBTC" });`}
+            </pre>
+          </div>
+        </section>
+
+        <section className="card overflow-hidden">
+          <div className="card-header">
+            <div>
+              <h2 className="card-title">REST endpoints</h2>
+              <p className="card-description">{apiResources.length} endpoints available to your integration.</p>
+            </div>
+          </div>
+          <ul className="divide-y divide-line">
+            {apiResources.map((resource) => (
+              <li key={`${resource.method}-${resource.path}`} className="px-5 py-3.5 sm:px-6">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <MethodTag method={resource.method} />
+                  <code className="break-all font-mono text-[14px] text-fg">{resource.path}</code>
+                </div>
+                <p className="mt-1.5 text-[14px] text-muted">{resource.purpose}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
   );
 }

@@ -2,11 +2,21 @@
 import { toAtomicAmount } from "@/lib/amounts";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import GlassCard from "@/components/GlassCard";
+import { CircleAlert, CircleCheck, Clock3, Download, FileQuestion } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import StatusBadge from "@/components/app/StatusBadge";
 import { formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
+import {
+  AmountDisplay,
+  CheckoutNotFound,
+  CheckoutShell,
+  CheckoutSkeleton,
+  CopyValue,
+  DetailList,
+  DetailRow,
+  PaymentProgress,
+  TicketDivider,
+} from "@/components/checkout/Checkout";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
 type RemoteInvoice = {
@@ -15,6 +25,7 @@ type RemoteInvoice = {
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
+  recipient_address?: string | null;
   expires_at: string | null;
   paid_at: string | null;
   merchant?: {
@@ -70,6 +81,33 @@ function getTokenContractId(currency: string) {
   return null;
 }
 
+/** "In 2 days · Oct 4, 7:45 AM" (shown under an "Expires" label). */
+function formatExpiry(expiresAt: string | null, nowMs: number) {
+  if (!expiresAt) {
+    return "No expiry";
+  }
+  const absolute = formatDateTime(expiresAt);
+  const diffMs = Date.parse(expiresAt) - nowMs;
+  if (!Number.isFinite(diffMs)) {
+    return absolute;
+  }
+  if (diffMs <= 0) {
+    return `Expired · ${absolute}`;
+  }
+  const minutes = Math.ceil(diffMs / 60_000);
+  const hours = Math.round(diffMs / 3_600_000);
+  const days = Math.round(diffMs / 86_400_000);
+  const relative =
+    minutes < 60
+      ? `${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+      : hours < 24
+        ? `${hours} ${hours === 1 ? "hour" : "hours"}`
+        : `${days} ${days === 1 ? "day" : "days"}`;
+  return `In ${relative} · ${absolute}`;
+}
+
+type PaymentPhase = "idle" | "signing" | "confirming";
+
 export default function HostedPaymentPage({
   params,
 }: {
@@ -82,9 +120,16 @@ export default function HostedPaymentPage({
   const [paymentReceiptId, setPaymentReceiptId] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // Presentation-only: which step of the payment the customer is in.
+  const [phase, setPhase] = useState<PaymentPhase>("idle");
+  const [justPaid, setJustPaid] = useState(false);
 
   useEffect(() => {
     setConnectedAddress(getConnectedWalletAddress());
+    // Pick up connects/disconnects made through ConnectWalletButton on this page.
+    const sync = () => setConnectedAddress(getConnectedWalletAddress());
+    window.addEventListener("stackpay:auth", sync);
+    return () => window.removeEventListener("stackpay:auth", sync);
   }, []);
 
   useEffect(() => {
@@ -180,13 +225,17 @@ export default function HostedPaymentPage({
 
     setSubmittingPayment(true);
     setPaymentError(null);
+    setPhase("signing");
 
     try {
       await submitContractIntent(contractIntent, {
         onCancel: () => {
-          setPaymentError("Payment was canceled.");
+          setPaymentError("Payment was canceled in your wallet. You can try again.");
+          setSubmittingPayment(false);
+          setPhase("idle");
         },
         onFinish: async ({ txId }) => {
+          setPhase("confirming");
           try {
             for (let attempt = 0; attempt < 20; attempt += 1) {
               const response = await fetch(`/api/invoices/${invoice.onchain_invoice_id}/payment`, {
@@ -216,6 +265,7 @@ export default function HostedPaymentPage({
                     : current
                 );
                 setPaymentReceiptId(payload.data?.sync?.receiptId ?? null);
+                setJustPaid(true);
                 return;
               }
 
@@ -235,168 +285,183 @@ export default function HostedPaymentPage({
             setPaymentError(syncError instanceof Error ? syncError.message : "Failed to confirm payment.");
           } finally {
             setSubmittingPayment(false);
+            setPhase("idle");
           }
         },
       });
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : "Failed to submit payment.");
       setSubmittingPayment(false);
+      setPhase("idle");
     }
   }
 
+
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center px-6 py-12">
-        <div className="mx-auto w-full max-w-3xl">
-          <GlassCard className="border border-white/20">
-            <div className="space-y-5">
-              <div className="text-xs uppercase tracking-[0.35em] text-white/40">Loading invoice</div>
-              <div className="h-10 w-56 rounded-2xl bg-white/10" />
-              <div className="h-16 w-40 rounded-3xl bg-white/10" />
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="h-24 rounded-2xl bg-white/10" />
-                <div className="h-24 rounded-2xl bg-white/10" />
-                <div className="h-24 rounded-2xl bg-white/10" />
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-      </main>
-    );
+    return <CheckoutSkeleton label="Loading invoice…" />;
   }
 
   if (!invoice) {
     return (
-      <main className="flex min-h-screen items-center px-6 py-12">
-        <div className="mx-auto max-w-3xl">
-          <GlassCard>
-            <div className="text-3xl font-semibold text-white">Invoice not found</div>
-            <div className="mt-3 text-sm text-white/60">
-              This hosted payment page could not find a matching invoice.
-            </div>
-            <Link
-              href="/create-invoice"
-              className="mt-5 inline-flex rounded-full border border-white/20 bg-white px-5 py-3 text-sm font-semibold text-black"
-            >
-              Create a new invoice
-            </Link>
-          </GlassCard>
-        </div>
-      </main>
+      <CheckoutNotFound icon={<FileQuestion size={22} />} title="We couldn’t find this invoice">
+        <p>
+          Check that you opened the full link you were sent. If it still doesn’t load, contact the business that sent
+          it and ask for a new payment link.
+        </p>
+      </CheckoutNotFound>
     );
   }
 
+  const amountLabel = formatCurrencyAmount(Number(invoice.amount), invoice.currency);
+  const statusLabel = effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : "Pending";
+
   return (
-    <main className="flex min-h-screen items-center px-6 py-12">
-      <div className="mx-auto w-full max-w-3xl">
-        <GlassCard className="border border-white/20">
-          <div className="space-y-6">
-            <div className="space-y-3 text-center">
-              <div className="text-xs uppercase tracking-[0.35em] text-white/40">Hosted payment</div>
-              <h1 className="text-4xl font-semibold text-white">{merchantName}</h1>
-              <p className="mx-auto max-w-xl text-sm text-white/60">
-                Review the invoice and complete payment with your Stacks wallet.
+    <CheckoutShell merchantName={merchantName}>
+      <section className="card overflow-hidden" aria-labelledby="checkout-amount">
+        <div className="p-5 pb-6 sm:p-6 sm:pb-7">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="checkout-amount" className="text-sm font-medium text-muted">
+              {effectiveStatus === "paid" ? "Amount paid" : "Amount due"}
+            </h2>
+            <StatusBadge label={statusLabel} />
+          </div>
+          <AmountDisplay amount={Number(invoice.amount)} currency={invoice.currency} className="mt-2" />
+          {invoice.description ? (
+            <p className="mt-3 text-base leading-7 text-fg-2">{invoice.description}</p>
+          ) : null}
+        </div>
+
+        <TicketDivider />
+        <div className="px-5 py-1.5 sm:px-6">
+          <DetailList>
+            <DetailRow term="Pays to">
+              <span className="block font-medium text-fg">{merchantName}</span>
+              {invoice.recipient_address ? (
+                <span className="mt-0.5 block">
+                  <CopyValue value={invoice.recipient_address} label="Recipient address" />
+                </span>
+              ) : null}
+            </DetailRow>
+            <DetailRow term="Invoice">
+              <CopyValue value={invoice.onchain_invoice_id} label="Invoice ID" />
+            </DetailRow>
+            {effectiveStatus === "paid" ? (
+              <DetailRow term="Paid">
+                <span className="tabular-nums">
+                  {formatDateTime(invoice.paid_at ?? invoice.receipt?.paid_at ?? null)}
+                </span>
+              </DetailRow>
+            ) : (
+              <DetailRow term="Expires">
+                <span className={effectiveStatus === "expired" ? "text-muted" : undefined}>
+                  {formatExpiry(invoice.expires_at, nowMs)}
+                </span>
+              </DetailRow>
+            )}
+            {resolvedReceiptId ? (
+              <DetailRow term="Receipt">
+                <CopyValue value={resolvedReceiptId} label="Receipt ID" />
+              </DetailRow>
+            ) : null}
+          </DetailList>
+        </div>
+
+        <div className="space-y-4 border-t border-line bg-subtle/60 p-5 sm:p-6">
+          {effectiveStatus === "paid" ? (
+            <div role="status" className="flex flex-col items-center py-2 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-success/10 text-success" aria-hidden="true">
+                <CircleCheck size={28} />
+              </span>
+              <p className="mt-4 text-xl font-semibold text-fg">
+                {justPaid ? "Payment complete" : "This invoice has been paid"}
+              </p>
+              <p className="mt-1.5 max-w-sm text-sm text-muted">
+                {justPaid
+                  ? `${amountLabel} was sent to ${merchantName} and confirmed on Stacks.`
+                  : `${merchantName} has received this payment. There’s nothing left to pay.`}
+              </p>
+              {resolvedReceiptId ? (
+                <a
+                  href={`/api/receipts/${resolvedReceiptId}/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-lg mt-5 w-full"
+                >
+                  <Download size={18} aria-hidden="true" />
+                  Download receipt (PDF)
+                </a>
+              ) : null}
+            </div>
+          ) : effectiveStatus === "expired" ? (
+            <div className="flex flex-col items-center py-2 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-full border border-line-strong bg-panel text-muted" aria-hidden="true">
+                <Clock3 size={26} />
+              </span>
+              <p className="mt-4 text-xl font-semibold text-fg">This invoice has expired</p>
+              <p className="mt-1.5 max-w-sm text-sm text-muted">
+                It can no longer be paid. Contact {merchantName} if you still need to pay, and they can send you a new
+                invoice.
               </p>
             </div>
+          ) : (
+            <>
+              {connectedAddress ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-fg">Paying from</p>
+                    <p className="text-sm text-muted">Your connected Stacks wallet</p>
+                  </div>
+                  <div className="shrink-0">
+                    <ConnectWalletButton />
+                  </div>
+                </div>
+              ) : null}
 
-            <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">
-                    Invoice {invoice.onchain_invoice_id}
-                  </div>
-                  <div className="mt-3 text-4xl font-semibold text-white">
-                    {formatCurrencyAmount(Number(invoice.amount), invoice.currency)}
-                  </div>
-                </div>
-                <StatusBadge
-                  label={
-                    effectiveStatus === "paid"
-                      ? "Paid"
-                      : effectiveStatus === "expired"
-                        ? "Expired"
-                        : "Pending"
-                  }
-                />
-              </div>
+              {phase === "signing" ? (
+                <PaymentProgress title="Confirm the payment in your wallet">
+                  Check the amount and recipient, then approve it.
+                </PaymentProgress>
+              ) : phase === "confirming" ? (
+                <PaymentProgress title="Confirming on Stacks…">
+                  This can take a minute. Keep this page open.
+                </PaymentProgress>
+              ) : null}
 
-              <div className="mt-6 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Description</div>
-                  <div className="mt-2 text-sm text-white/75">{invoice.description || "No description"}</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Customer</div>
-                  <div className="mt-2 text-sm text-white/75">
-                    Customer details are private
-                  </div>
-                  <div className="mt-1 text-xs text-white/40">Contact the merchant for account-specific details.</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Expires</div>
-                  <div className="mt-2 text-sm text-white/75">
-                    {invoice.expires_at ? formatDateTime(invoice.expires_at) : "No expiry"}
+              {paymentError ? (
+                <div role="alert" className="alert alert-danger">
+                  <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="font-medium">Payment didn’t go through</p>
+                    <p className="mt-0.5 break-words text-fg-2">{paymentError}</p>
                   </div>
                 </div>
-              </div>
-            </div>
+              ) : null}
 
-            <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-              <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Wallet checkout</div>
-              <div className="mt-4 flex flex-col items-center gap-4 text-center">
-                <div className="max-w-md text-sm text-white/65">
-                  {connectedAddress
-                    ? `Connected wallet ${connectedAddress}`
-                    : "Connect a Stacks wallet to pay this invoice."}
-                </div>
-                <ConnectWalletButton />
+              {connectedAddress ? (
                 <button
+                  type="button"
                   onClick={() => void handleRemotePayment()}
-                  disabled={submittingPayment || effectiveStatus !== "pending"}
-                  className="w-full max-w-sm rounded-full border border-white/20 bg-white px-5 py-3 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={submittingPayment}
+                  className="btn btn-primary btn-lg w-full"
                 >
-                  {effectiveStatus === "paid"
-                    ? "Payment complete"
-                    : effectiveStatus === "expired"
-                      ? "Invoice expired"
-                      : submittingPayment
-                        ? "Processing payment..."
-                        : "Pay invoice"}
+                  {submittingPayment
+                    ? phase === "confirming"
+                      ? "Confirming payment…"
+                      : "Waiting for wallet…"
+                    : `Pay ${amountLabel}`}
                 </button>
-                {paymentError ? (
-                  <div className="w-full max-w-sm rounded-2xl bg-white/8 px-4 py-4 text-sm text-rose-300">
-                    {paymentError}
-                  </div>
-                ) : null}
-                {paymentReceiptId ? (
-                  <div className="w-full max-w-sm rounded-2xl bg-white/8 px-4 py-4 text-sm text-white/75">
-                    Receipt {paymentReceiptId} confirmed.
-                  </div>
-                ) : null}
-                {resolvedReceiptId ? (
-                  <a
-                    href={`/api/receipts/${resolvedReceiptId}/pdf`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full max-w-sm rounded-full border border-white/10 bg-white/5 px-5 py-3 text-center text-sm text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]"
-                  >
-                    Download receipt PDF
-                  </a>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-col items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-white/30">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/20">
-                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622C17.176 19.29 21 14.591 21 9c0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Secured and verified by StackPay · 2026
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-    </main>
+              ) : (
+                <ConnectWalletButton variant="inline" />
+              )}
+              <p className="text-center text-sm text-muted">
+                {connectedAddress
+                  ? "You’ll review and approve the payment in your wallet."
+                  : `Connect a Stacks wallet such as Leather or Xverse to pay ${amountLabel}.`}
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+    </CheckoutShell>
   );
 }

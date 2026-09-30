@@ -1,6 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Figtree } from "next/font/google";
 import { DemoProvider } from "@/components/app/DemoProvider";
 import "./globals.css";
+
+// Fallback for platforms without Avenir Next. Not preloaded: Apple devices
+// render Avenir Next and never need to download it.
+const figtree = Figtree({
+  subsets: ["latin"],
+  variable: "--font-figtree",
+  display: "swap",
+  preload: false,
+});
 
 export const metadata: Metadata = {
   title: "StackPay — Bitcoin-native payments on Stacks",
@@ -13,13 +23,21 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f7f6" },
+  ],
+};
+
 export default function RootLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={figtree.variable} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: `(function(){var t;try{t=localStorage.getItem("stackpay-theme")}catch(e){}document.documentElement.dataset.theme=t==="light"||t==="dark"?t:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"})()` }}/></head>
       <body>
         <DemoProvider>{children}</DemoProvider>
       </body>

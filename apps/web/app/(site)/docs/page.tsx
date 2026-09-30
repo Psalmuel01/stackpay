@@ -2,12 +2,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowUpRight,
   BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Hash,
+  Info,
   Search,
   ShieldCheck,
   Terminal,
-  ChevronRight,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 
@@ -159,10 +163,24 @@ const routes = [
     "Receive configured Chainhook events.",
   ],
 ];
-function Note({ children }: { children: React.ReactNode }) {
+function Note({
+  children,
+  tone = "info",
+}: {
+  children: React.ReactNode;
+  tone?: "info" | "warning";
+}) {
+  const Icon = tone === "warning" ? AlertTriangle : Info;
   return (
-    <div className="my-6 rounded-xl border border-[#fc6532]/20 bg-[#fc6532]/5 px-5 py-4 text-sm leading-7 text-[#e9c1b3]">
-      {children}
+    <div
+      className={`alert my-6 text-base leading-7 ${tone === "warning" ? "alert-warning" : ""}`}
+    >
+      <Icon
+        size={18}
+        aria-hidden="true"
+        className={`mt-1 shrink-0 ${tone === "warning" ? "" : "text-muted"}`}
+      />
+      <div>{children}</div>
     </div>
   );
 }
@@ -170,30 +188,40 @@ function Steps({ items }: { items: string[] }) {
   return (
     <ol className="my-6 space-y-4">
       {items.map((item, i) => (
-        <li key={item} className="flex gap-3 text-sm leading-7 text-white/65">
-          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 text-[11px] text-white/50">
+        <li key={item} className="flex gap-4">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong bg-subtle text-xs font-semibold tabular-nums text-fg-2">
             {i + 1}
           </span>
-          <span>{item}</span>
+          <span className="text-fg-2">{item}</span>
         </li>
       ))}
     </ol>
+  );
+}
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded-md border border-line bg-subtle px-1.5 py-0.5 font-mono text-[0.875em] text-fg">
+      {children}
+    </code>
   );
 }
 function Section({ id, children }: { id: string; children: React.ReactNode }) {
   return (
     <section
       id={id}
-      className="docs-section border-t border-white/10 py-10 first:border-0 first:pt-0"
+      className="docs-section border-t border-line py-12 first:border-0 first:pt-0"
     >
-      <h2 className="mb-5 text-2xl font-semibold tracking-tight">
-        <a href={`#${id}`} className="hover:text-[#ff9069]">
+      <h2 className="group mb-5 text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
+        <a href={`#${id}`} className="inline-flex items-center gap-2">
           {topics.find((topic) => topic.id === id)?.title}
+          <Hash
+            size={20}
+            aria-hidden="true"
+            className="text-faint opacity-0 transition-opacity group-hover:opacity-100"
+          />
         </a>
       </h2>
-      <div className="space-y-4 text-sm leading-7 text-white/60">
-        {children}
-      </div>
+      <div className="space-y-5 text-base leading-7 text-fg-2">{children}</div>
     </section>
   );
 }
@@ -211,75 +239,103 @@ export default function DocsPage() {
       .toLowerCase()
       .includes(query.toLowerCase().trim()),
   );
+  const activeTopic = topics.find((topic) => topic.id === active) ?? topics[0];
+  const renderToc = (onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void) => (
+    <>
+      <label className="relative block">
+        <span className="sr-only">Find a documentation topic</span>
+        <Search
+          size={16}
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
+        />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Find a topic…"
+          type="search"
+          className="field pl-10"
+        />
+      </label>
+      <nav aria-label="Documentation topics" className="mt-4">
+        {filtered.length === 0 && (
+          <p role="status" className="px-1 py-3 text-sm text-muted">
+            No matching topics. Try “wallet” or “invoice”.
+          </p>
+        )}
+        {filtered.map((topic, index) => (
+          <div key={topic.id}>
+            {(index === 0 || topic.group !== filtered[index - 1].group) && (
+              <p className={`mb-1.5 text-xs font-semibold text-fg ${index === 0 ? "" : "mt-6"}`}>
+                {topic.group}
+              </p>
+            )}
+            <a
+              href={`#${topic.id}`}
+              onClick={(event) => {
+                setActive(topic.id);
+                onNavigate?.(event);
+              }}
+              aria-current={active === topic.id ? "location" : undefined}
+              className={`-ml-px flex min-h-10 items-center border-l-2 py-1.5 pl-4 text-sm transition-colors ${active === topic.id ? "border-accent font-medium text-fg" : "border-line text-muted hover:border-line-strong hover:text-fg"}`}
+            >
+              {topic.title}
+            </a>
+          </div>
+        ))}
+      </nav>
+    </>
+  );
   return (
     <>
       <main id="main-content" className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="border-b border-white/10 py-10 md:py-14">
-          <div className="mb-4 flex items-center gap-2 text-xs text-[#ff9069]">
-            <BookOpen size={15} />
+        <div className="border-b border-line py-12 md:py-16">
+          <p className="mb-4 flex items-center gap-2 text-sm font-medium text-accent-text">
+            <BookOpen size={16} aria-hidden="true" />
             StackPay documentation
-          </div>
-          <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-            From first connection
-            <br className="sm:hidden" /> to confirmed payment.
+          </p>
+          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-fg md:text-5xl">
+            From first connection to confirmed payment.
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/55">
-            Guides for merchants. Implementation details for developers. A clear
-            view of what works today and what’s still in progress.
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-fg-2">
+            Step-by-step guides for merchants, implementation details for
+            developers, and a clear view of what works today and what’s still
+            in progress.
           </p>
         </div>
-        <div className="grid gap-8 py-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-14">
-          <aside className="self-start lg:sticky lg:top-28">
-            <label className="relative block">
-              <span className="sr-only">Find a documentation topic</span>
-              <Search
-                size={15}
-                className="absolute left-3 top-3.5 text-white/40"
-              />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Find a topic…"
-                type="search"
-                className="w-full rounded-lg border border-white/15 bg-white/[0.03] py-3 pl-9 pr-3 text-xs"
-              />
-            </label>
-            <nav
-              aria-label="Documentation topics"
-              className="mt-5 flex max-h-64 flex-col gap-1 overflow-y-auto lg:max-h-[65vh]"
-            >
-              {filtered.length === 0 && (
-                <p role="status" className="p-3 text-sm text-white/50">
-                  No matching topics. Try “wallet” or “invoice”.
-                </p>
-              )}
-              {filtered.map((topic, index) => (
-                <div key={topic.id}>
-                  {(index === 0 ||
-                    topic.group !== filtered[index - 1].group) && (
-                    <p className="mb-2 mt-4 px-3 text-[11px] font-medium uppercase tracking-wider text-white/35">
-                      {topic.group}
-                    </p>
-                  )}
-                  <a
-                    href={`#${topic.id}`}
-                    onClick={() => setActive(topic.id)}
-                    aria-current={active === topic.id ? "location" : undefined}
-                    className={`block rounded-lg px-3 py-2.5 text-sm transition-colors ${active === topic.id ? "bg-[#fc6532]/10 text-[#ff9d7a]" : "text-white/55 hover:bg-white/5 hover:text-white"}`}
-                  >
-                    {topic.title}
-                  </a>
-                </div>
-              ))}
-            </nav>
+        <details className="group sticky top-16 z-30 -mx-4 border-b border-line bg-canvas/95 px-4 backdrop-blur-xl sm:top-[72px] sm:-mx-6 sm:px-6 lg:hidden">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="text-muted">On this page</span>
+              <span className="text-line-strong" aria-hidden="true">/</span>
+              <span className="truncate font-medium text-fg">{activeTopic.title}</span>
+            </span>
+            <ChevronDown
+              size={18}
+              aria-hidden="true"
+              className="shrink-0 text-muted transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="max-h-[60vh] overflow-y-auto pb-5 pt-1">
+            {renderToc((event) => {
+              const details = event.currentTarget.closest("details");
+              if (details) details.open = false;
+            })}
+          </div>
+        </details>
+        <div className="grid gap-8 py-10 lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-16 lg:py-12">
+          <aside className="hidden self-start lg:sticky lg:top-[104px] lg:block">
+            <div className="max-h-[calc(100vh-140px)] overflow-y-auto pb-2 pr-1">
+              {renderToc()}
+            </div>
             <a
               href="https://github.com/Psalmuel01/stackpay"
-              className="mt-6 flex items-center justify-between border-t border-white/10 px-3 pt-5 text-xs text-white/45 hover:text-white"
+              className="mt-6 flex items-center justify-between gap-2 border-t border-line pt-5 text-sm text-muted hover:text-fg"
             >
-              View source on GitHub <ArrowUpRight size={14} />
+              View source on GitHub <ArrowUpRight size={15} aria-hidden="true" />
             </a>
           </aside>
-          <article className="min-w-0 pb-12">
+          <article className="min-w-0 max-w-[720px] pb-12">
             <Section id="overview">
               <p>
                 StackPay brings invoice creation, hosted checkout, payment
@@ -287,10 +343,8 @@ export default function DocsPage() {
                 workspace on Stacks. Supported payment assets are STX, sBTC, and
                 USDCx, subject to the configured contracts and network.
               </p>
-              <Note>
-                <strong className="font-medium text-[#ffd1c1]">
-                  Testnet preview.
-                </strong>{" "}
+              <Note tone="warning">
+                <strong className="font-semibold">Testnet preview.</strong>{" "}
                 The current release is an MVP under active development.
                 Independent contract review and further operational hardening
                 remain prerequisites for handling meaningful mainnet funds.
@@ -315,15 +369,19 @@ export default function DocsPage() {
                     <a
                       key={String(id)}
                       href={`#${id}`}
-                      className="rounded-xl border border-white/10 bg-white/[0.025] p-5 hover:border-white/25"
+                      className="group card flex items-start gap-4 p-5 transition-colors hover:border-line-strong"
                     >
-                      <CardIcon className="mb-3 text-[#ff9069]" size={20} />
-                      <h3 className="font-medium text-white">
-                        {String(title)}
-                      </h3>
-                      <p className="mt-1 text-xs text-white/50">
-                        {String(description)}
-                      </p>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-subtle text-accent-text">
+                        <CardIcon size={18} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <h3 className="flex items-center justify-between gap-2 font-semibold text-fg">
+                          {String(title)}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted">
+                          {String(description)}
+                        </p>
+                      </span>
                     </a>
                   );
                 })}
@@ -346,8 +404,8 @@ export default function DocsPage() {
                   "Wait for payment confirmation. Review the invoice and receipt, then inspect the processor balance in Settlements.",
                 ]}
               />
-              <Link className="primary-button" href="/dashboard">
-                Launch Console <ArrowUpRight size={15} />
+              <Link className="btn btn-primary w-full sm:w-auto" href="/dashboard">
+                Launch console <ArrowUpRight size={16} aria-hidden="true" />
               </Link>
             </Section>
             <Section id="invoices">
@@ -414,50 +472,48 @@ export default function DocsPage() {
                 wallet. A merchant initiates a withdrawal and approves the
                 transaction.
               </p>
-              <div className="overflow-x-auto rounded-xl border border-white/10">
-                <table className="w-full text-left text-sm">
-                  <caption className="sr-only">Financial terms</caption>
-                  <thead className="bg-white/5 text-white/80">
-                    <tr>
-                      <th scope="col" className="p-4 font-medium">
-                        Term
-                      </th>
-                      <th scope="col" className="p-4 font-medium">
-                        What it means
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {[
-                      [
-                        "Available balance",
-                        "The balance currently held for the merchant in the processor contract.",
-                      ],
-                      [
-                        "Payment volume",
-                        "Recorded payments over the displayed period; not the amount available to withdraw.",
-                      ],
-                      [
-                        "USD estimate",
-                        "A display conversion. Current demo conversion rates are not a live market quote or an accounting valuation.",
-                      ],
-                      [
-                        "Settlement",
-                        "A manual on-chain withdrawal from the processor balance.",
-                      ],
-                    ].map(([term, detail]) => (
-                      <tr key={term}>
-                        <th
-                          scope="row"
-                          className="p-4 align-top font-medium text-white/80"
-                        >
-                          {term}
-                        </th>
-                        <td className="p-4">{detail}</td>
+              <div className="card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <caption className="sr-only">Financial terms</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Term</th>
+                        <th scope="col">What it means</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {[
+                        [
+                          "Available balance",
+                          "The balance currently held for the merchant in the processor contract.",
+                        ],
+                        [
+                          "Payment volume",
+                          "Recorded payments over the displayed period; not the amount available to withdraw.",
+                        ],
+                        [
+                          "USD estimate",
+                          "A display conversion. Current demo conversion rates are not a live market quote or an accounting valuation.",
+                        ],
+                        [
+                          "Settlement",
+                          "A manual on-chain withdrawal from the processor balance.",
+                        ],
+                      ].map(([term, detail]) => (
+                        <tr key={term}>
+                          <th
+                            scope="row"
+                            className="whitespace-nowrap bg-transparent py-4 align-top text-sm font-semibold text-fg [tr:last-child_&]:border-b-0"
+                          >
+                            {term}
+                          </th>
+                          <td className="align-top text-fg-2">{detail}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <p>
                 Review the asset, amount, recipient, and network fee before
@@ -500,65 +556,85 @@ export default function DocsPage() {
                 the application for payments and consult the route source when
                 developing inside this repository.
               </Note>
-              <h3 className="font-medium text-white">
+              <h3 className="pt-2 text-lg font-semibold text-fg">
                 Example: read the signed-in session
               </h3>
-              <pre className="overflow-x-auto rounded-xl border border-white/10 bg-black/25 p-5 text-xs leading-6 text-white/75">
+              <pre className="overflow-x-auto rounded-xl border border-line bg-subtle p-5 font-mono text-[13.5px] leading-6 text-fg-2">
                 <code>{`// Run inside the StackPay application origin.\nconst response = await fetch("/api/auth/session", {\n  credentials: "same-origin",\n  cache: "no-store",\n});\nconst result = await response.json();\nif (!response.ok) throw new Error(result.error.message);\nconsole.log(result.data.walletAddress);`}</code>
               </pre>
-              <h3 className="pt-3 font-medium text-white">Core routes</h3>
-              <div className="overflow-x-auto rounded-xl border border-white/10">
-                <table className="w-full min-w-[640px] text-left text-xs">
-                  <caption className="sr-only">
-                    Core API routes and authentication requirements
-                  </caption>
-                  <thead className="bg-white/5 text-white/70">
-                    <tr>
-                      {["Method / path", "Access", "Purpose"].map((label) => (
-                        <th key={label} scope="col" className="p-4 font-medium">
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {routes.map(([method, path, access, purpose]) => (
-                      <tr key={`${method}:${path}`}>
-                        <td className="p-4">
-                          <span className="mb-1 block font-mono text-[10px] text-[#ffad91]">
-                            {method}
-                          </span>
-                          <code className="text-white/80">{path}</code>
-                        </td>
-                        <td className="p-4">{access}</td>
-                        <td className="p-4">{purpose}</td>
+              <h3 className="pt-2 text-lg font-semibold text-fg">Core routes</h3>
+              <div className="card overflow-hidden">
+                <ul className="divide-y divide-line sm:hidden">
+                  {routes.map(([method, path, access, purpose]) => (
+                    <li key={`${method}:${path}`} className="space-y-1.5 px-5 py-4">
+                      <p className="font-mono text-xs font-semibold text-accent-text">
+                        {method}
+                      </p>
+                      <p className="break-all font-mono text-[13.5px] text-fg">{path}</p>
+                      <p className="text-sm text-fg-2">{purpose}</p>
+                      <span className="badge badge-neutral">{access}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto sm:block">
+                  <table className="data-table">
+                    <caption className="sr-only">
+                      Core API routes and authentication requirements
+                    </caption>
+                    <thead>
+                      <tr>
+                        {["Method and path", "Access", "Purpose"].map((label) => (
+                          <th key={label} scope="col">
+                            {label}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {routes.map(([method, path, access, purpose]) => (
+                        <tr key={`${method}:${path}`}>
+                          <td className="align-top">
+                            <span className="mb-1 block font-mono text-xs font-semibold text-accent-text">
+                              {method}
+                            </span>
+                            <code className="whitespace-nowrap font-mono text-[13.5px] text-fg">
+                              {path}
+                            </code>
+                          </td>
+                          <td className="whitespace-nowrap align-top text-sm text-muted">
+                            {access}
+                          </td>
+                          <td className="min-w-[200px] align-top text-sm text-fg-2">
+                            {purpose}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <p>
                 Successful JSON responses use{" "}
-                <code className="text-white/80">{`{ data: … }`}</code>; errors
+                <Code>{`{ data: … }`}</Code>; errors
                 use{" "}
-                <code className="text-white/80">{`{ error: { code, message } }`}</code>
-                . Handle 401 by signing in again, 429 by waiting before
+                <Code>{`{ error: { code, message } }`}</Code>. Handle 401 by signing in again, 429 by waiting before
                 retrying, and 503 as a service or configuration problem. Never
                 automatically repeat a wallet payment after an ambiguous
                 response.
               </p>
               <a
                 href="https://github.com/Psalmuel01/stackpay/tree/main/apps/web/app/api"
-                className="inline-flex items-center gap-2 text-[#ff9069] hover:text-white"
+                className="link inline-flex items-center gap-2"
               >
-                Browse all route implementations <ArrowUpRight size={15} />
+                Browse all route implementations <ArrowUpRight size={16} aria-hidden="true" />
               </a>
             </Section>
             <Section id="security">
-              <div className="flex gap-3">
+              <div className="alert text-base leading-7">
                 <ShieldCheck
-                  size={22}
-                  className="mt-1 shrink-0 text-[#ff9069]"
+                  size={18}
+                  aria-hidden="true"
+                  className="mt-1 shrink-0 text-accent-text"
                 />
                 <p>
                   Wallet sessions, ownership checks, explicit transaction
@@ -568,7 +644,7 @@ export default function DocsPage() {
                   audit.
                 </p>
               </div>
-              <ul className="list-disc space-y-3 pl-5">
+              <ul className="list-disc space-y-4 pl-5 marker:text-faint">
                 <li>
                   Clarity contracts own payment state and processor balances.
                   Supabase stores application records, profiles, and
@@ -601,7 +677,7 @@ export default function DocsPage() {
                 if one exists. Never share seed phrases, private keys, or server
                 credentials.
               </p>
-              <div className="divide-y divide-white/10 rounded-xl border border-white/10">
+              <div className="card divide-y divide-line overflow-hidden">
                 {[
                   [
                     "Leather or Xverse does not connect",
@@ -628,22 +704,27 @@ export default function DocsPage() {
                     "Look up the transaction on the configured network. A submitted transaction is not a confirmed payment. Keep the transaction ID for investigation and do not pay again until its result is known.",
                   ],
                 ].map(([title, body]) => (
-                  <details key={title} className="group p-5">
-                    <summary className="cursor-pointer font-medium text-white/85">
+                  <details key={title} className="group">
+                    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium text-fg transition-colors hover:bg-subtle/60 [&::-webkit-details-marker]:hidden">
                       {title}
+                      <ChevronDown
+                        size={18}
+                        aria-hidden="true"
+                        className="shrink-0 text-muted transition-transform group-open:rotate-180"
+                      />
                     </summary>
-                    <p className="mt-3">{body}</p>
+                    <p className="px-5 pb-5 text-fg-2">{body}</p>
                   </details>
                 ))}
               </div>
             </Section>
-            <div className="flex items-center justify-between border-t border-white/10 pt-6 text-xs text-white/40">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-sm text-muted">
               <span>Found a gap in the docs?</span>
               <a
                 href="https://github.com/Psalmuel01/stackpay/issues"
-                className="flex items-center gap-1 hover:text-white"
+                className="link inline-flex min-h-10 items-center gap-1"
               >
-                Open an issue <ChevronRight size={14} />
+                Open an issue <ChevronRight size={16} aria-hidden="true" />
               </a>
             </div>
           </article>

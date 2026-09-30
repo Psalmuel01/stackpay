@@ -2,7 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import GlassCard from "@/components/GlassCard";
+import {
+  AlertCircle,
+  ArrowUpRight,
+  Check,
+  CheckCircle2,
+  Clock,
+  Copy,
+  FileText,
+  Loader2,
+  Lock,
+  QrCode,
+  Repeat,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import QrPreview from "@/components/app/QrPreview";
 import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
@@ -28,21 +42,21 @@ const flows: Array<{ id: CreateFlow; label: string; summary: string }> = [
   {
     id: "standard",
     label: "Standard",
-    summary: "One invoice, one payment. The invoice closes after it is paid.",
+    summary: "One invoice for one payment. It closes as soon as it’s paid.",
   },
   {
     id: "multipay",
     label: "MultiPay",
-    summary: "Reusable invoice for multiple payments.",
+    summary: "A reusable link that stays open and accepts any number of payments.",
   },
 ];
 
 const currencies: Currency[] = ["STX", "sBTC", "USDCx"];
 const expirations = [
-  { label: "1h", hours: 1 },
-  { label: "24h", hours: 24 },
-  { label: "7d", hours: 24 * 7 },
-  { label: "30d", hours: 24 * 30 },
+  { label: "1 hour", hours: 1 },
+  { label: "24 hours", hours: 24 },
+  { label: "7 days", hours: 24 * 7 },
+  { label: "30 days", hours: 24 * 30 },
   { label: "Custom", hours: "custom" as const },
 ];
 
@@ -96,17 +110,19 @@ export default function CreateInvoicePage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
   const resolvedRecipientAddress = merchantProfile?.settlement_wallet || connectedAddress || "";
   const merchantName = (merchantProfile?.company_name || merchantProfile?.display_name || "").trim();
   const merchantReady = Boolean(
     connectedAddress &&
-      (merchantProfile?.company_name ?? "").trim().length > 6 &&
-      (merchantProfile?.display_name ?? "").trim() &&
-      isValidEmail((merchantProfile?.email ?? "").trim())
+    (merchantProfile?.company_name ?? "").trim().length > 6 &&
+    (merchantProfile?.display_name ?? "").trim() &&
+    isValidEmail((merchantProfile?.email ?? "").trim())
   );
 
   useEffect(() => {
     setConnectedAddress(getConnectedWalletAddress());
+    setOrigin(window.location.origin);
   }, []);
 
   useEffect(() => {
@@ -405,8 +421,8 @@ export default function CreateInvoicePage() {
       const normalizedSuggestedAmounts =
         multiPayPricingMode === "suggested"
           ? suggestedAmounts
-              .map((value) => Number(value || 0))
-              .filter((value, index, values) => Number.isFinite(value) && value > 0 && values.indexOf(value) === index)
+            .map((value) => Number(value || 0))
+            .filter((value, index, values) => Number.isFinite(value) && value > 0 && values.indexOf(value) === index)
           : [];
 
       if (multiPayPricingMode === "fixed") {
@@ -485,73 +501,170 @@ export default function CreateInvoicePage() {
     }
   }
 
+  const isStandard = flow === "standard";
+  const linkReady = Boolean(result?.href);
+  const awaitingChain = Boolean(result?.txId && !result?.href);
+  const awaitingWallet = submitting && !awaitingChain;
+  const shareUrl = result?.href && origin ? `${origin}${result.href}` : null;
+  const itemNoun = isStandard ? "invoice" : "payment link";
+  const selectedExpiry =
+    expiration === "custom"
+      ? customExpirationValue
+        ? `${customExpirationValue} ${customExpirationUnit}`
+        : "Custom"
+      : expirations.find((item) => item.hours === expiration)?.label ?? "";
+  const previewAmount =
+    !isStandard && multiPayPricingMode === "suggested"
+      ? suggestedAmounts.filter(Boolean).length
+        ? suggestedAmounts
+          .filter(Boolean)
+          .map((value) => formatCurrencyAmount(Number(value), currency))
+          .join(" · ")
+        : `Choice of amounts in ${currency}`
+      : formatCurrencyAmount(Number(amount || 0), currency);
+  const recipientHint = merchantProfile?.settlement_wallet
+    ? "Your settlement wallet from Settings."
+    : connectedAddress
+      ? "Your connected wallet. Add a settlement wallet in Settings to be paid somewhere else."
+      : "Connect a wallet, or add a settlement wallet in Settings.";
+
   return (
     <div>
       <PageHeader
-        title="Create Invoice"
-        subtitle="Choose between a standard single-payment invoice and a reusable MultiPay route."
+        title="Create invoice"
+        subtitle="Request a one-time payment, or set up a reusable MultiPay link that customers can pay again and again."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <GlassCard className="border border-white/20">
-          <div className="space-y-5">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="card overflow-hidden" aria-labelledby="create-form-title">
+          <div className="card-header">
             <div>
-              <div className="mt-3 flex flex-wrap gap-3">
+              <h2 id="create-form-title" className="card-title">
+                {isStandard ? "Invoice details" : "Payment link details"}
+              </h2>
+              <p className="card-description">
+                {isStandard
+                  ? "You’ll confirm the invoice in your wallet before it goes live."
+                  : "You’ll confirm the link in your wallet before it goes live."}
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="space-y-6 p-5 sm:p-6"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+          >
+            <div>
+              <span className="label" id="flow-label">
+                Invoice type
+              </span>
+              <div
+                className="segmented flex w-full sm:inline-flex sm:w-auto"
+                role="group"
+                aria-labelledby="flow-label"
+              >
                 {flows.map((item) => (
                   <button
                     key={item.id}
+                    type="button"
+                    aria-pressed={flow === item.id}
+                    className="flex-1 sm:flex-none sm:px-5"
                     onClick={() => {
                       setFlow(item.id);
                       setError(null);
                       setSuccessMessage(null);
                     }}
-                    className={`rounded-full px-4 py-2 text-sm transition ${flow === item.id
-                        ? "border border-white/20 bg-white text-black"
-                        : "border border-white/10 bg-white/5 text-white/70 hover:border-white/30"
-                      }`}
                   >
+                    {item.id === "standard" ? (
+                      <FileText size={16} aria-hidden="true" />
+                    ) : (
+                      <Repeat size={16} aria-hidden="true" />
+                    )}
                     {item.label}
                   </button>
                 ))}
               </div>
-              <div className="mt-3 text-sm text-white/55">
-                {flows.find((item) => item.id === flow)?.summary}
-              </div>
+              <p className="hint text-sm">{flows.find((item) => item.id === flow)?.summary}</p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="border-t border-line" aria-hidden="true" />
+
+            {!isStandard ? (
               <div>
-                <label className="text-xs uppercase tracking-[0.24em] text-white/40">
-                  Amount
-                </label>
-                <div className="mt-2 flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <input
-                    className="w-full bg-transparent text-sm text-white/80 outline-none"
-                    value={amount}
-                    onChange={(event) => setAmount(sanitizeDecimalInput(event.target.value))}
-                    placeholder={
-                      flow === "multipay"
-                        ? multiPayPricingMode === "suggested"
-                          ? "Optional default amount"
-                          : "Fixed amount"
-                        : "Invoice amount"
-                    }
-                    inputMode="decimal"
-                  />
-                  <span className="text-xs text-white/55">{currency}</span>
+                <span className="label" id="pricing-label">
+                  Pricing
+                </span>
+                <div
+                  className="segmented flex w-full sm:inline-flex sm:w-auto"
+                  role="group"
+                  aria-labelledby="pricing-label"
+                >
+                  {([
+                    { id: "fixed", label: "Fixed" },
+                    { id: "suggested", label: "Suggested" },
+                  ] as const).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={multiPayPricingMode === item.id}
+                      className="flex-1 sm:flex-none"
+                      onClick={() => setMultiPayPricingMode(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
+                <p className="hint text-sm">
+                  {multiPayPricingMode === "fixed"
+                    ? "Every customer pays the same amount."
+                    : "Customers pick one of up to three amounts you set."}
+                </p>
               </div>
-              <div>
-                <label className="text-xs uppercase tracking-[0.24em] text-white/40">Currency</label>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+            ) : null}
+
+            <div className="grid gap-5 md:grid-cols-2">
+              {isStandard || multiPayPricingMode === "fixed" ? (
+                <div>
+                  <label className="label" htmlFor="invoice-amount">
+                    Amount
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="invoice-amount"
+                      className="field pr-20 tabular-nums"
+                      value={amount}
+                      onChange={(event) => setAmount(sanitizeDecimalInput(event.target.value))}
+                      placeholder="0.00"
+                      inputMode="decimal"
+                      autoComplete="off"
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-muted">
+                      {currency}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={!isStandard && multiPayPricingMode === "suggested" ? "md:col-span-2" : undefined}>
+                <span className="label" id="currency-label">
+                  Currency
+                </span>
+                <div
+                  className="segmented flex w-full sm:inline-flex sm:w-auto"
+                  role="group"
+                  aria-labelledby="currency-label"
+                >
                   {currencies.map((item) => (
                     <button
                       key={item}
+                      type="button"
+                      aria-pressed={currency === item}
+                      className="flex-1 sm:flex-none"
                       onClick={() => setCurrency(item)}
-                      className={`rounded-full px-3 py-2 text-xs transition ${currency === item
-                          ? "border border-white/20 bg-white text-black"
-                          : "border border-white/10 bg-white/5 text-white/70"
-                        }`}
                     >
                       {item}
                     </button>
@@ -560,22 +673,54 @@ export default function CreateInvoicePage() {
               </div>
             </div>
 
-            {flow === "standard" ? (
+            {!isStandard && multiPayPricingMode === "suggested" ? (
+              <fieldset>
+                <legend className="label">Suggested amounts</legend>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {suggestedAmounts.map((entry, index) => (
+                    <div key={`suggested-${index}`} className="relative">
+                      <input
+                        className="field pr-20 tabular-nums"
+                        value={entry}
+                        onChange={(event) => updateSuggestedAmount(index, event.target.value)}
+                        placeholder={`Option ${index + 1}`}
+                        aria-label={`Suggested amount ${index + 1}`}
+                        inputMode="decimal"
+                        autoComplete="off"
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-muted">
+                        {currency}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="hint text-sm">Leave any options you don’t need empty.</p>
+              </fieldset>
+            ) : null}
+
+            {isStandard ? (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-5 md:grid-cols-2">
                   <div>
-                    <label className="text-xs uppercase tracking-[0.24em] text-white/40">Customer</label>
+                    <label className="label" htmlFor="invoice-customer">
+                      Customer <span className="font-normal text-muted">(optional)</span>
+                    </label>
                     <input
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
+                      id="invoice-customer"
+                      className="field"
                       value={customer}
                       onChange={(event) => setCustomer(event.target.value)}
-                      placeholder="Customer or company"
+                      placeholder="Customer or company name"
+                      autoComplete="off"
                     />
                   </div>
                   <div>
-                    <label className="text-xs uppercase tracking-[0.24em] text-white/40">Email</label>
+                    <label className="label" htmlFor="invoice-email">
+                      Customer email <span className="font-normal text-muted">(optional)</span>
+                    </label>
                     <input
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
+                      id="invoice-email"
+                      className="field"
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
@@ -586,59 +731,71 @@ export default function CreateInvoicePage() {
                 </div>
 
                 <div>
-                  <label className="text-xs uppercase tracking-[0.24em] text-white/40">Expiration</label>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="label" id="expiry-label">
+                    Expires after
+                  </span>
+                  <div className="flex flex-wrap gap-2" role="group" aria-labelledby="expiry-label">
                     {expirations.map((item) => (
                       <button
                         key={item.label}
+                        type="button"
+                        className="chip"
+                        aria-pressed={expiration === item.hours}
                         onClick={() => setExpiration(item.hours)}
-                        className={`rounded-full px-3 py-2 text-xs transition ${expiration === item.hours
-                            ? "border border-white/20 bg-white text-black"
-                            : "border border-white/10 bg-white/5 text-white/70"
-                          }`}
                       >
                         {item.label}
                       </button>
                     ))}
                   </div>
                   {expiration === "custom" ? (
-                    <>
-                      <div className="mt-3 max-w-xs">
-                        <input
-                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
-                          value={customExpirationValue}
-                          onChange={(event) => setCustomExpirationValue(event.target.value)}
-                          placeholder="5"
-                        />
-                      </div>
-                      <div className="mt-3 max-w-xs">
-                        <div className="grid grid-cols-3 gap-2">
+                    <div className="well mt-3 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="sm:w-32">
+                          <label className="label" htmlFor="custom-expiry">
+                            Duration
+                          </label>
+                          <input
+                            id="custom-expiry"
+                            className="field tabular-nums"
+                            value={customExpirationValue}
+                            onChange={(event) => setCustomExpirationValue(event.target.value)}
+                            placeholder="5"
+                            inputMode="numeric"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div
+                          className="segmented flex w-full sm:inline-flex sm:w-auto"
+                          role="group"
+                          aria-label="Duration unit"
+                        >
                           {(["minutes", "hours", "days"] as const).map((unit) => (
                             <button
                               key={unit}
                               type="button"
+                              aria-pressed={customExpirationUnit === unit}
+                              className="flex-1 capitalize sm:flex-none"
                               onClick={() => setCustomExpirationUnit(unit)}
-                              className={`rounded-full px-3 py-2 text-xs transition ${customExpirationUnit === unit
-                                  ? "border border-white/20 bg-white text-black"
-                                  : "border border-white/10 bg-white/5 text-white/70"
-                                }`}
                             >
                               {unit}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div className="mt-2 text-xs text-white/45">
-                        Custom expiry is a duration from now. Choose the value and whether it is in minutes, hours, or days.
-                      </div>
-                    </>
-                  ) : null}
+                      <p className="hint text-sm">Counted from the moment the invoice is created.</p>
+                    </div>
+                  ) : (
+                    <p className="hint text-sm">After this, the invoice can no longer be paid.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="text-xs uppercase tracking-[0.24em] text-white/40">Description</label>
+                  <label className="label" htmlFor="invoice-description">
+                    Description <span className="font-normal text-muted">(optional)</span>
+                  </label>
                   <textarea
-                    className="mt-2 h-24 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
+                    id="invoice-description"
+                    className="field"
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="What the customer is paying for"
@@ -646,210 +803,292 @@ export default function CreateInvoicePage() {
                 </div>
               </>
             ) : (
-              <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.24em] text-white/40">Pricing</label>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {([
-                        { id: "fixed", label: "Fixed" },
-                        { id: "suggested", label: "Suggested" },
-                      ] as const).map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setMultiPayPricingMode(item.id)}
-                          className={`rounded-full px-3 py-3 text-xs transition ${
-                            multiPayPricingMode === item.id
-                              ? "border border-white/20 bg-white text-black"
-                              : "border border-white/10 bg-white/5 text-white/70"
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.24em] text-white/40">Description</label>
-                    <input
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="What customers are paying for"
-                    />
-                  </div>
-                </div>
-
-                {multiPayPricingMode === "suggested" ? (
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.24em] text-white/40">Suggested amounts</label>
-                    <div className="mt-2 grid gap-3 md:grid-cols-3">
-                      {suggestedAmounts.map((entry, index) => (
-                        <div
-                          key={`suggested-${index}`}
-                          className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-                        >
-                          <input
-                            className="w-full bg-transparent text-sm text-white/80 outline-none"
-                            value={entry}
-                            onChange={(event) => updateSuggestedAmount(index, event.target.value)}
-                            // placeholder={`Amount ${index + 1}`}
-                            inputMode="decimal"
-                          />
-                          <span className="text-xs text-white/55">{currency}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-2 text-xs text-white/45">
-                      Customers will choose one of these amounts. Leave unused options empty.
-                    </div>
-                  </div>
-                ) : null}
-
-                {/* <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70">
-                  MultiPay stays active after each payment. It uses the same currency and description every time.
-                </div> */}
-              </>
+              <div>
+                <label className="label" htmlFor="link-description">
+                  Description <span className="font-normal text-muted">(optional)</span>
+                </label>
+                <input
+                  id="link-description"
+                  className="field"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="What customers are paying for"
+                  autoComplete="off"
+                />
+                <p className="hint text-sm">Shown on the checkout page every time someone pays.</p>
+              </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-xs uppercase tracking-[0.24em] text-white/40">Recipient</label>
-                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                  {resolvedRecipientAddress ? truncateAddress(resolvedRecipientAddress) : "No wallet configured"}
-                </div>
+            <div className="border-t border-line" aria-hidden="true" />
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="min-w-0">
+                <label className="label flex items-center gap-1.5" htmlFor="invoice-recipient">
+                  Paid to
+                  <Lock size={14} className="text-muted" aria-hidden="true" />
+                  <span className="sr-only">(read-only)</span>
+                </label>
+                <input
+                  id="invoice-recipient"
+                  className="field cursor-default font-mono"
+                  readOnly
+                  value={resolvedRecipientAddress ? truncateAddress(resolvedRecipientAddress) : "No wallet yet"}
+                  title={resolvedRecipientAddress || undefined}
+                />
+                <p className="hint text-sm">{recipientHint}</p>
               </div>
-              <div>
-                <label className="text-xs uppercase tracking-[0.24em] text-white/40">Merchant</label>
-                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                  {merchantName || "Complete Settings first"}
-                </div>
+              <div className="min-w-0">
+                <label className="label flex items-center gap-1.5" htmlFor="invoice-merchant">
+                  Business name
+                  <Lock size={14} className="text-muted" aria-hidden="true" />
+                  <span className="sr-only">(read-only)</span>
+                </label>
+                <input
+                  id="invoice-merchant"
+                  className="field cursor-default"
+                  readOnly
+                  value={merchantName || "Not set up yet"}
+                />
+                <p className="hint text-sm">
+                  Shown to customers at checkout. Change it in{" "}
+                  <Link href="/profile" className="link">
+                    Profile
+                  </Link>
+                  .
+                </p>
               </div>
             </div>
 
-            {!merchantReady ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                Set up your profile in{" "}
-                <Link href="/profile" className="text-white underline underline-offset-4">
-                  Profile
-                </Link>{" "}
-                first before creating invoices.
+            {!connectedAddress ? (
+              <div className="alert alert-warning" role="status">
+                <Wallet size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Connect your wallet to continue</p>
+                  <p className="text-fg-2">
+                    You’ll approve each {itemNoun} in your Stacks wallet. StackPay saves it once the transaction is
+                    confirmed on-chain.
+                  </p>
+                </div>
+              </div>
+            ) : !merchantReady ? (
+              <div className="alert alert-warning" role="status">
+                <UserRound size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Finish your merchant profile first</p>
+                  <p className="text-fg-2">
+                    Add a business name, display name, and email in{" "}
+                    <Link href="/profile" className="link">
+                      Profile
+                    </Link>{" "}
+                    before creating {isStandard ? "invoices" : "payment links"}.
+                  </p>
+                </div>
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-3">
+            {submitting ? (
+              <div className="alert" role="status" aria-live="polite">
+                <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-accent-text" aria-hidden="true" />
+                <div>
+                  <p className="font-medium text-fg">
+                    {awaitingWallet ? "Confirm in your wallet" : "Waiting for the network"}
+                  </p>
+                  <p>
+                    {awaitingWallet
+                      ? `Review and approve the transaction in your wallet to create this ${itemNoun}.`
+                      : `Transaction sent. Your ${itemNoun} link appears as soon as Stacks confirms it — this can take a minute or two.`}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {!submitting && awaitingChain ? (
+              <div className="alert alert-warning" role="status">
+                <Clock size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Still confirming on Stacks</p>
+                  <p className="text-fg-2">
+                    Your transaction was sent but hasn’t confirmed yet. The invoice will appear in Invoices once it
+                    does.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {successMessage ? (
+              <div className="alert alert-success" role="status">
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">{successMessage}</p>
+                  <p className="text-fg-2">Copy the link or share the QR code to get paid.</p>
+                </div>
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="alert alert-danger" role="alert">
+                <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">
+                    {isStandard ? "Couldn’t create the invoice" : "Couldn’t create the payment link"}
+                  </p>
+                  <p className="text-fg-2">{error}</p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted">
+                Network fees are paid from your wallet.
+              </p>
               <button
-                onClick={() => void submit()}
+                type="submit"
                 disabled={submitting || !merchantReady}
-                className="button-glow rounded-full border border-white/50 bg-white px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn btn-primary btn-lg w-full sm:w-auto"
               >
-                {submitting ? "Generating..." : flow === "standard" ? "Generate invoice" : "Create payment link"}
+                {submitting ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
+                {submitting
+                  ? awaitingWallet
+                    ? "Waiting for wallet…"
+                    : "Confirming…"
+                  : isStandard
+                    ? "Create invoice"
+                    : "Create payment link"}
               </button>
             </div>
+          </form>
+        </section>
 
-            {flow === "standard" && !connectedAddress && (
-              <div className="text-xs text-white/45">
-                Connect a Stacks wallet first. StackPay only stores the invoice after the contract succeeds and returns the on-chain invoice id.
+        <aside className="space-y-4 lg:sticky lg:top-24" aria-label="Preview and sharing">
+          <section className="card overflow-hidden" aria-labelledby="preview-title">
+            <div className="card-header">
+              <div>
+                <h2 id="preview-title" className="card-title">
+                  Checkout preview
+                </h2>
+                <p className="card-description">Updates as you type.</p>
               </div>
-            )}
-
-            {successMessage ? <div className="text-sm text-emerald-300">{successMessage}</div> : null}
-            {error ? <div className="text-sm text-red-300">{error}</div> : null}
-          </div>
-        </GlassCard>
-
-        <div className="space-y-3">
-          <GlassCard>
-            <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Hosted preview</div>
-            <div className="mt-3 rounded-[28px] border border-white/10 bg-white/5 p-5">
-              <div className="text-lg font-semibold text-white">
-                {flow === "standard" ? customer || "New invoice" : description || "Payment link"}
-              </div>
-              <div className="mt-1 text-sm text-white/55">
-                {flow === "standard"
-                  ? `Single payment · ${formatCurrencyAmount(Number(amount || 0), currency)}`
-                  : multiPayPricingMode === "suggested"
-                    ? `Reusable payment link · ${suggestedAmounts.filter(Boolean).length || 0} suggested choices`
-                    : `Reusable payment link · ${formatCurrencyAmount(Number(amount || 0), currency)}`}
-              </div>
-              <div className="mt-5">
-                <QrPreview
-                  caption={flow === "standard" ? "Invoice link" : "Payment link"}
-                  label={previewLabel}
-                />
-              </div>
+              <span className="badge badge-neutral shrink-0">{isStandard ? "Single payment" : "Reusable"}</span>
             </div>
-          </GlassCard>
-
-          <GlassCard>
-            <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Distribution</div>
-            <div className="mt-3 space-y-3">
-              <button
-                onClick={handleCopy}
-                disabled={!result?.href}
-                className="flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70 disabled:opacity-50"
-              >
-                {copied ? "Copied" : "Copy link"}
-              </button>
-              <Link
-                href={result?.href ?? "#"}
-                target={result?.href ? "_blank" : undefined}
-                rel={result?.href ? "noreferrer" : undefined}
-                className={`flex w-full items-center justify-center rounded-full border px-4 py-3 text-xs ${result?.href
-                    ? "border-white/35 bg-white text-black"
-                    : "border-white/10 bg-white/5 text-white/45"
-                  }`}
-              >
-                {result?.href
-                  ? flow === "standard"
-                    ? "Open generated invoice"
-                    : "Open payment link"
-                  : flow === "standard"
-                    ? "Generated invoice appears here"
-                    : "Generated payment link appears here"}
-              </Link>
-            </div>
-          </GlassCard>
-
-          {/* {result ? (
-            <GlassCard className="border border-white/20">
-              <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Generated result</div>
-              <div className="mt-3 text-sm text-white/75">{result.summary}</div>
-              <div className="mt-3 text-sm text-white">{result.title}</div>
-              {result.href ? <div className="mt-3 font-mono text-xs text-white/55">{result.href}</div> : null}
-              {result.storage ? (
-                <div className="mt-3 text-xs uppercase tracking-[0.2em] text-white/40">
-                  Stored in {result.storage}
-                </div>
-              ) : null}
-              {result.txId ? (
-                <div className="mt-3 font-mono text-xs text-white/55">tx: {result.txId}</div>
-              ) : null}
-              {result.onchainInvoiceId ? (
-                <div className="mt-2 font-mono text-xs text-white/55">
-                  on-chain invoice id: {result.onchainInvoiceId}
-                </div>
-              ) : null}
-              {result.contractIntent ? (
-                <>
-                  <div className="mt-4 text-[11px] uppercase tracking-[0.26em] text-white/40">Contract intent</div>
-                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-sm text-white">
-                      {result.contractIntent.contractId} :: {result.contractIntent.functionName}
+            <div className="p-5 sm:p-6">
+              <p className="truncate text-sm text-muted">{merchantName ? `From ${merchantName}` : "From your business"}</p>
+              <p className="mt-1 truncate text-lg font-semibold text-fg">
+                {isStandard ? customer || "New invoice" : description || "Payment link"}
+              </p>
+              <p className="mt-3 break-words text-2xl font-semibold tabular-nums text-fg">{previewAmount}</p>
+              <dl className="mt-5 space-y-2.5 border-t border-line pt-4 text-sm">
+                {isStandard ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted">Expires after</dt>
+                      <dd className="text-fg-2">{selectedExpiry}</dd>
                     </div>
-                    <div className="mt-2 text-xs text-white/50">
-                      Network: {result.contractIntent.network}
-                    </div>
-                    <pre className="mt-3 overflow-x-auto text-xs text-white/60">
-                      {JSON.stringify(result.contractIntent.arguments, null, 2)}
-                    </pre>
+                    {description ? (
+                      <div className="flex justify-between gap-4">
+                        <dt className="shrink-0 text-muted">For</dt>
+                        <dd className="min-w-0 truncate text-fg-2">{description}</dd>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted">Pricing</dt>
+                    <dd className="text-fg-2">
+                      {multiPayPricingMode === "fixed" ? "Fixed amount" : "Customer picks an amount"}
+                    </dd>
                   </div>
-                </>
+                )}
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted">Pay with</dt>
+                  <dd className="text-fg-2">{currency}</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
+          <section className="card overflow-hidden" aria-labelledby="share-title">
+            <div className="card-header">
+              <div>
+                <h2 id="share-title" className="card-title">
+                  Share
+                </h2>
+                <p className="card-description">
+                  {linkReady
+                    ? `Your ${itemNoun} is live.`
+                    : awaitingChain
+                      ? "Waiting for confirmation."
+                      : `Available once the ${itemNoun} is created.`}
+                </p>
+              </div>
+              {linkReady ? (
+                <span className="badge badge-success shrink-0">Ready</span>
+              ) : awaitingChain ? (
+                <span className="badge badge-warning shrink-0">Confirming</span>
               ) : null}
-            </GlassCard>
-          ) : null} */}
-        </div>
+            </div>
+
+            <div className="p-5 sm:p-6">
+              {linkReady && result?.href ? (
+                <div className="space-y-4">
+                  <QrPreview value={shareUrl} label={previewLabel} size={168} />
+                  <div>
+                    <label className="label" htmlFor="share-link">
+                      {isStandard ? "Invoice link" : "Payment link"}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="share-link"
+                        className="field min-w-0 flex-1 font-mono text-sm"
+                        readOnly
+                        value={shareUrl ?? result.href}
+                        onFocus={(event) => event.currentTarget.select()}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="btn btn-secondary btn-icon h-11 w-11 shrink-0"
+                        aria-label={copied ? "Link copied" : "Copy link"}
+                        title={copied ? "Copied" : "Copy link"}
+                      >
+                        {copied ? (
+                          <Check size={18} className="text-success" aria-hidden="true" />
+                        ) : (
+                          <Copy size={18} aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="hint text-sm" aria-live="polite">
+                      {copied ? "Copied to your clipboard." : "Send this to your customer, or let them scan the code."}
+                    </p>
+                  </div>
+                  <Link
+                    href={result.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary w-full"
+                  >
+                    Open checkout
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-2 text-center">
+                  <span className="empty-state-icon" aria-hidden="true">
+                    {awaitingChain ? <Loader2 size={22} className="animate-spin" /> : <QrCode size={22} />}
+                  </span>
+                  <h3 className="text-base font-semibold text-fg">
+                    {awaitingChain ? "Almost there" : `Your link and QR code will appear here`}
+                  </h3>
+                  <p className="mt-1.5 max-w-[280px] text-sm text-muted">
+                    {awaitingChain
+                      ? "We’ll show the shareable link as soon as Stacks confirms the transaction."
+                      : `After you confirm in your wallet, you’ll get a link to copy, a scannable QR code, and the hosted checkout.`}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

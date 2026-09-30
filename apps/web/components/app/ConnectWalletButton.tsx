@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronDown, Copy, Landmark, LogOut, Wallet } from "lucide-react";
 import { connectWallet, disconnectWallet, getConnectedWalletAddress, walletErrorMessage } from "@/lib/wallet-connection";
 
 type WalletBalances = {
@@ -15,8 +16,8 @@ type MerchantProfile = {
   settlement_wallet?: string | null;
 };
 
-function truncateAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+function truncateAddress(address: string, start = 6, end = 4) {
+  return `${address.slice(0, start)}…${address.slice(-end)}`;
 }
 
 function formatBalance(amount: number | null, symbol: "STX" | "sBTC" | "USDCx") {
@@ -30,7 +31,14 @@ function formatBalance(amount: number | null, symbol: "STX" | "sBTC" | "USDCx") 
   }).format(amount)} ${symbol}`;
 }
 
-export default function ConnectWalletButton() {
+const menuItem =
+  "flex min-h-[42px] w-full items-center gap-3 rounded-control px-3 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60";
+
+/**
+ * `header` is the compact top-bar control. `inline` is a full-width primary
+ * action for use inside page content (for example the sign-in card).
+ */
+export default function ConnectWalletButton({ variant = "header" }: { variant?: "header" | "inline" }) {
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -41,6 +49,7 @@ export default function ConnectWalletButton() {
   const [loadingBalances, setLoadingBalances] = useState(false);
 
   const ref = useRef<HTMLDivElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -66,6 +75,14 @@ export default function ConnectWalletButton() {
   useEffect(() => {
     setConnected(Boolean(getConnectedWalletAddress()));
     setAddress(getConnectedWalletAddress());
+    // Keep every instance (top bar, sign-in card) in step when the wallet changes elsewhere.
+    const sync = () => {
+      const next = getConnectedWalletAddress();
+      setConnected(Boolean(next));
+      setAddress(next);
+    };
+    window.addEventListener("stackpay:auth", sync);
+    return () => window.removeEventListener("stackpay:auth", sync);
   }, []);
 
   useEffect(() => {
@@ -161,76 +178,157 @@ export default function ConnectWalletButton() {
   }
 
   if (!connected || !address) {
+    if (variant === "inline") {
+      return (
+        <div className="w-full">
+          <button
+            type="button"
+            disabled={connecting}
+            onClick={handleConnect}
+            className="btn btn-primary btn-lg w-full"
+          >
+            <Wallet size={18} aria-hidden="true" />
+            {connecting ? "Waiting for your wallet…" : "Connect wallet"}
+          </button>
+          {connectionError && (
+            <p role="alert" className="alert alert-danger mt-3">
+              {connectionError}
+            </p>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="relative">
-      <button
-        disabled={connecting}
-        onClick={handleConnect}
-        className="secondary-button"
-      >
-        {connecting ? "Connecting…" : "Connect Wallet"}
-      </button>
-      {connectionError && <p role="alert" className="absolute right-0 top-full z-50 mt-3 w-72 rounded-xl border border-rose-400/30 bg-[#151010] p-3 text-sm text-rose-200">{connectionError}</p>}
+        <button
+          type="button"
+          disabled={connecting}
+          onClick={handleConnect}
+          className="btn btn-primary min-h-[40px] px-3.5 sm:px-4"
+        >
+          <Wallet size={16} aria-hidden="true" />
+          {connecting ? (
+            "Connecting…"
+          ) : (
+            <>
+              <span className="sm:hidden">Connect</span>
+              <span className="hidden sm:inline">Connect wallet</span>
+            </>
+          )}
+        </button>
+        {connectionError && (
+          <p
+            role="alert"
+            className="alert alert-danger absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] shadow-pop"
+          >
+            {connectionError}
+          </p>
+        )}
       </div>
     );
   }
 
+  const balanceRows: Array<["STX" | "sBTC" | "USDCx", number | null]> = [
+    ["sBTC", balances?.sBTC ?? null],
+    ["STX", balances?.STX ?? null],
+    ["USDCx", balances?.USDCx ?? null],
+  ];
+
   return (
     <div className="relative" ref={ref}>
       <button
+        type="button"
         aria-expanded={open}
+        aria-controls={menuId}
         aria-label="Connected wallet options"
+        title={address}
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:border-white/20 hover:text-white"
+        className="btn btn-secondary min-h-[40px] gap-2 px-3 font-medium sm:px-3.5"
       >
-        <span className="inline-flex h-2 w-2 rounded-full bg-emerald-300" />
-        <span>{truncateAddress(address)}</span>
+        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-success" />
+        <span className="font-mono text-[13.5px] tabular-nums sm:hidden">{truncateAddress(address, 2, 4)}</span>
+        <span className="hidden font-mono text-[13.5px] tabular-nums sm:inline">{truncateAddress(address)}</span>
+        <ChevronDown
+          size={15}
+          aria-hidden="true"
+          className={`hidden text-muted transition-transform sm:block ${open ? "rotate-180" : ""}`}
+        />
       </button>
-      {connectionError && <p role="alert" className="mt-2 max-w-xs text-sm text-rose-300">{connectionError}</p>}
+      {connectionError && !open && (
+        <p
+          role="alert"
+          className="alert alert-danger absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] shadow-pop"
+        >
+          {connectionError}
+        </p>
+      )}
       {open ? (
-        <div className="absolute right-0 top-[calc(100%+12px)] w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-          <div className="rounded-2xl bg-white/5 px-4 py-4">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Connected wallet</div>
-            <div className="mt-2 font-mono text-xs text-white/75">{truncateAddress(address)}</div>
-            {profile?.settlement_wallet ? (
-              <div className="mt-3 text-xs text-white/45">
-                Settlement wallet: {truncateAddress(profile.settlement_wallet)}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="mt-3 rounded-2xl bg-white/5 px-4 py-4">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Wallet balances</div>
-            <div className="mt-3 space-y-2 text-sm text-white/75">
-              <div className="flex items-center justify-between">
-                <span>STX</span>
-                <span>{loadingBalances ? "Loading..." : formatBalance(balances?.STX ?? null, "STX")}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>sBTC</span>
-                <span>{loadingBalances ? "Loading..." : formatBalance(balances?.sBTC ?? null, "sBTC")}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>USDCx</span>
-                <span>{loadingBalances ? "Loading..." : formatBalance(balances?.USDCx ?? null, "USDCx")}</span>
-              </div>
+        <div
+          id={menuId}
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] overflow-hidden rounded-card border border-line bg-panel shadow-pop"
+        >
+          <div className="flex items-start gap-3 border-b border-line p-4">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-control border border-line bg-subtle text-fg-2">
+              <Wallet size={18} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-fg">
+                {profile?.company_name || profile?.display_name || "Connected wallet"}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-muted">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success" />
+                <span className="font-mono">{truncateAddress(address, 8, 6)}</span>
+              </p>
             </div>
           </div>
 
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex-1 rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-semibold text-black"
-            >
-              Copy
+          <div className="border-b border-line px-4 py-3" aria-busy={loadingBalances}>
+            <p className="mb-1.5 text-[14px] font-medium text-muted">Wallet balance</p>
+            <dl className="space-y-1">
+              {balanceRows.map(([symbol, amount]) => (
+                <div key={symbol} className="flex min-h-[28px] items-center justify-between gap-3 text-sm">
+                  <dt className="text-fg-2">{symbol}</dt>
+                  <dd className="font-medium tabular-nums text-fg">
+                    {loadingBalances ? (
+                      <>
+                        <span className="skeleton block h-4 w-20" aria-hidden="true" />
+                        <span className="sr-only">Loading…</span>
+                      </>
+                    ) : amount === null ? (
+                      <span className="font-normal text-muted">{formatBalance(amount, symbol)}</span>
+                    ) : (
+                      formatBalance(amount, symbol)
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {profile?.settlement_wallet ? (
+              <p className="mt-2.5 flex items-center gap-2 border-t border-line pt-2.5 text-[14px] text-muted">
+                <Landmark size={15} aria-hidden="true" className="shrink-0" />
+                <span>
+                  Settles to <span className="font-mono text-fg-2">{truncateAddress(profile.settlement_wallet)}</span>
+                </span>
+              </p>
+            ) : null}
+          </div>
+
+          <div className="p-1.5">
+            <button type="button" onClick={handleCopy} className={`${menuItem} text-fg-2 hover:bg-subtle hover:text-fg`}>
+              <Copy size={17} aria-hidden="true" className="text-muted" />
+              Copy address
             </button>
-            <button
-              onClick={handleDisconnect}
-              className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70"
-            >
-              Disconnect
+            <button type="button" onClick={handleDisconnect} className={`${menuItem} text-danger hover:bg-danger/10`}>
+              <LogOut size={17} aria-hidden="true" />
+              Sign out and disconnect
             </button>
           </div>
+          {connectionError && (
+            <p role="alert" className="alert alert-danger mx-3 mb-3">
+              {connectionError}
+            </p>
+          )}
         </div>
       ) : null}
     </div>

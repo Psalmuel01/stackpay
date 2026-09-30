@@ -1,10 +1,58 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Wallet, ArrowRight } from "lucide-react";
+import { ArrowRight, Check, Coins, KeyRound, LayoutGrid, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/Logo";
+import ConnectWalletButton from "./ConnectWalletButton";
 import { getConnectedWalletAddress } from "@/lib/stacks";
+import { walletNetwork } from "@/lib/wallet-connection";
 import { signInWithWallet } from "@/lib/wallet-sign-in";
+
+type StepState = "done" | "current" | "upcoming";
+
+function Step({ index, state, title, description }: { index: number; state: StepState; title: string; description: React.ReactNode }) {
+  return (
+    <li className="flex gap-3.5" aria-current={state === "current" ? "step" : undefined}>
+      <span
+        aria-hidden="true"
+        className={`mt-px grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[13px] font-semibold tabular-nums ${state === "done"
+          ? "border-success/30 bg-success/10 text-success"
+          : state === "current"
+            ? "border-accent/60 bg-accent/10 text-accent-text"
+            : "border-line-strong bg-subtle text-muted"
+          }`}
+      >
+        {state === "done" ? <Check size={15} strokeWidth={2.5} /> : index}
+      </span>
+      <div className="min-w-0 pb-0.5">
+        <p className={`text-sm font-semibold ${state === "upcoming" ? "text-fg-2" : "text-fg"}`}>
+          {title}
+          <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? " (current step)" : ""}</span>
+        </p>
+        <p className="mt-0.5 text-[14px] leading-relaxed text-muted">{description}</p>
+      </div>
+    </li>
+  );
+}
+
+function SessionSkeleton() {
+  return (
+    <div aria-busy="true" className="space-y-4">
+      <span className="sr-only" role="status">Checking your session…</span>
+      <div className="space-y-4 pb-4" aria-hidden="true">
+        <span className="skeleton block h-8 w-48" />
+        <span className="skeleton block h-4 w-72 max-w-full" />
+      </div>
+      <div className="card h-40" aria-hidden="true" />
+      <div className="grid gap-4 md:grid-cols-3" aria-hidden="true">
+        <div className="card h-32" />
+        <div className="card hidden h-32 md:block" />
+        <div className="card hidden h-32 md:block" />
+      </div>
+    </div>
+  );
+}
 
 export default function MerchantAuthGate({
   children,
@@ -37,8 +85,8 @@ export default function MerchantAuthGate({
           setAuthenticated(
             Boolean(
               wallet &&
-                payload.data?.walletAddress === wallet &&
-                getConnectedWalletAddress() === wallet,
+              payload.data?.walletAddress === wallet &&
+              getConnectedWalletAddress() === wallet,
             ),
           );
       } catch (error) {
@@ -64,92 +112,121 @@ export default function MerchantAuthGate({
     };
   }, [publicPage]);
   if (publicPage || authenticated) return <>{children}</>;
+  if (checking) return <SessionSkeleton />;
+
+  const address = connected ? getConnectedWalletAddress() : null;
+  const network = walletNetwork() === "mainnet" ? "Mainnet" : "Testnet";
+
   return (
-    <section className="mx-auto my-6 max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#111316] md:my-12">
-      <div className="border-b border-white/10 px-6 py-5 sm:px-9">
-        <p className="flex items-center gap-2 text-xs font-medium text-white/50">
-          <ShieldCheck size={15} className="text-[#ff9069]" />
-          Your merchant workspace
-        </p>
-      </div>
-      <div className="px-6 py-8 sm:p-9">
-        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-[#fc6532]/20 bg-[#fc6532]/10 text-[#ff9069]">
-          <Wallet size={23} />
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Your business. Your wallet.
-        </h1>
-        <p className="mt-4 max-w-lg text-sm leading-7 text-white/60">
-          Connect your wallet and sign in to create invoices, track payments,
-          and manage your settlements.
-        </p>
-        <ol className="my-7 grid gap-3 sm:grid-cols-2">
-          <li
-            className={`rounded-xl border p-4 ${connected ? "border-[#fc6532]/25 bg-[#fc6532]/5" : "border-white/15 bg-white/[0.025]"}`}
-          >
-            <p className="text-xs text-white/40">Step 1</p>
-            <p className="mt-2 text-sm font-medium">
-              {connected ? "Wallet connected" : "Connect a wallet"}
+    <section
+      aria-labelledby="sign-in-title"
+      className="relative isolate py-2 sm:py-10"
+    >
+      <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
+      <div className="card relative mx-auto w-full max-w-[460px] overflow-hidden">
+        <div aria-hidden="true" className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-accent/70 to-transparent" />
+        <div className="px-5 pb-6 pt-7 sm:px-8 sm:pb-8 sm:pt-9">
+          <div className="flex flex-col items-center text-center">
+            <Logo size={44} wordmark={false} />
+            <h1 id="sign-in-title" className="mt-5 text-2xl font-semibold text-fg">
+              Sign in to StackPay
+            </h1>
+            <p className="mt-2 max-w-[340px] text-sm leading-relaxed text-muted">
+              Your business, your wallet. Use the wallet that receives your
+              payments to create invoices, track payments, and manage settlements.
             </p>
-            <p className="mt-1 text-xs leading-5 text-white/50">
-              Use Leather or Xverse from the header.
-            </p>
-          </li>
-          <li className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
-            <p className="text-xs text-white/40">Step 2</p>
-            <p className="mt-2 text-sm font-medium">Sign a secure message</p>
-            <p className="mt-1 text-xs leading-5 text-white/50">
-              No transaction. No network fee.
-            </p>
-          </li>
-        </ol>
-        <p role="status" className="text-sm leading-6 text-white/60">
-          {checking
-            ? "Checking your session…"
-            : connected
-              ? "Your wallet is ready. Sign the message to continue."
-              : "Choose Connect Wallet above to get started."}
-        </p>
-        {error && (
-          <p
-            role="alert"
-            className="mt-4 rounded-lg border border-rose-400/20 bg-rose-400/5 p-4 text-sm leading-6 text-rose-200"
-          >
-            {error}
-          </p>
-        )}
-        {connected && !checking && (
-          <button
-            disabled={busy}
-            className="primary-button mt-5 disabled:opacity-50"
-            onClick={async () => {
-              setBusy(true);
-              setError(null);
-              try {
-                await signInWithWallet();
-              } catch (error) {
-                setError(
-                  error instanceof Error ? error.message : "Sign-in failed.",
-                );
-              } finally {
-                setBusy(false);
+          </div>
+
+          <ol className="well mt-7 space-y-4 p-4 sm:p-5">
+            <Step
+              index={1}
+              state={connected ? "done" : "current"}
+              title={connected ? "Wallet connected" : "Connect your wallet"}
+              description={
+                connected && address ? (
+                  <span className="font-mono text-[13.5px] text-fg-2" title={address}>
+                    {address.slice(0, 8)}…{address.slice(-6)}
+                  </span>
+                ) : (
+                  `Leather or Xverse, set to ${network.toLowerCase()}.`
+                )
               }
-            }}
-          >
-            {busy ? "Waiting for signature…" : "Sign in with wallet"}
-            <ArrowRight size={16} />
-          </button>
-        )}
+            />
+            <Step
+              index={2}
+              state={connected ? "current" : "upcoming"}
+              title="Sign a message"
+              description="Proves this wallet is yours. Your wallet will ask you to approve it."
+            />
+          </ol>
+
+          <p role="status" className="sr-only">
+            {connected
+              ? "Your wallet is ready. Sign the message to continue."
+              : "Connect your wallet to get started."}
+          </p>
+
+          {error && (
+            <p role="alert" className="alert alert-danger mt-5">
+              {error}
+            </p>
+          )}
+
+          <div className="mt-6">
+            {connected ? (
+              <button
+                type="button"
+                disabled={busy}
+                className="btn btn-primary btn-lg w-full"
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await signInWithWallet();
+                  } catch (error) {
+                    setError(
+                      error instanceof Error ? error.message : "Sign-in failed.",
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {busy ? "Confirm in your wallet…" : "Sign in with wallet"}
+                {!busy && <ArrowRight size={17} aria-hidden="true" />}
+              </button>
+            ) : (
+              <ConnectWalletButton variant="inline" />
+            )}
+          </div>
+
+          <p className="mt-4 text-balance text-center text-[14px] text-muted">
+            <ShieldCheck size={16} aria-hidden="true" className="-mt-0.5 mr-1.5 inline-block text-success" />
+            Signing is free and doesn’t create a transaction.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line bg-subtle px-5 py-4 text-[14px]">
+          <span className="text-muted">New to StackPay?</span>
+          <Link href="/docs#quickstart" className="link inline-flex items-center gap-1">
+            Read the getting started guide
+            <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-6 py-5 text-xs sm:px-9">
-        <span className="text-white/40">New to StackPay?</span>
-        <Link
-          href="/docs#quickstart"
-          className="text-[#ff9069] hover:text-white"
-        >
-          Follow the getting started guide →
-        </Link>
-      </div>
+
+      <ul className="mx-auto mt-6 grid max-w-[680px] gap-x-6 gap-y-2.5 px-2 sm:mt-8 sm:grid-cols-3">
+        {[
+          { icon: Coins, text: "Get paid in sBTC, STX, and USDCx" },
+          { icon: KeyRound, text: "No passwords. Your wallet is your login" },
+          { icon: LayoutGrid, text: "Invoices, links, and QR in one place" },
+        ].map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-center gap-2.5 text-[14px] text-muted sm:justify-center sm:text-center">
+            <Icon size={16} aria-hidden="true" className="shrink-0 text-fg-2" />
+            {text}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

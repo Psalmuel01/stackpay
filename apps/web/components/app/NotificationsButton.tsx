@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Bell } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Bell, BellOff, CheckCircle2, Info, RefreshCw, XCircle } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { getConnectedWalletAddress } from "@/lib/stacks";
 
 type NotificationItem = {
@@ -15,14 +15,52 @@ type NotificationItem = {
   created_at: string;
 };
 
+type LoadStatus = "loading" | "ready" | "error";
+
+const levelStyles: Record<NotificationItem["level"], { icon: typeof Info; tone: string }> = {
+  info: { icon: Info, tone: "border-info/25 bg-info/10 text-info" },
+  success: { icon: CheckCircle2, tone: "border-success/25 bg-success/10 text-success" },
+  warning: { icon: AlertTriangle, tone: "border-warning/25 bg-warning/10 text-warning" },
+  error: { icon: XCircle, tone: "border-danger/25 bg-danger/10 text-danger" },
+};
+
+function formatAbsolute(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatRelative(value: string) {
+  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+  const abs = Math.abs(seconds);
+  if (abs < 60) return "Just now";
+  const rtf = new Intl.RelativeTimeFormat("en-US", { numeric: "auto", style: "short" });
+  if (abs < 3600) return rtf.format(Math.round(seconds / 60), "minute");
+  if (abs < 86400) return rtf.format(Math.round(seconds / 3600), "hour");
+  if (abs < 86400 * 7) return rtf.format(Math.round(seconds / 86400), "day");
+  return formatAbsolute(value);
+}
+
+const popoverPosition =
+  "fixed inset-x-3 top-[68px] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-[380px]";
+
 export default function NotificationsButton() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [status, setStatus] = useState<LoadStatus>("loading");
   const [open, setOpen] = useState(false);
   const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
+  // Items that were unread when the panel opened. Opening marks everything read,
+  // so this keeps the unread markers visible for the current viewing.
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const [reloadKey, setReloadKey] = useState(0);
   const ref = useRef<HTMLDivElement | null>(null);
   const hasLoadedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const panelId = useId();
 
   function pingNotification() {
     if (typeof window === "undefined") {
@@ -66,6 +104,10 @@ export default function NotificationsButton() {
 
   useEffect(() => {
     setWalletAddress(getConnectedWalletAddress());
+    // Show or hide the bell when a wallet connects or disconnects elsewhere on the page.
+    const sync = () => setWalletAddress(getConnectedWalletAddress());
+    window.addEventListener("stackpay:auth", sync);
+    return () => window.removeEventListener("stackpay:auth", sync);
   }, []);
 
   useEffect(() => {
@@ -76,6 +118,7 @@ export default function NotificationsButton() {
 
     let cancelled = false;
     const resolvedWalletAddress = walletAddress;
+    if (!hasLoadedRef.current) setStatus("loading");
 
     async function loadNotifications() {
       try {
@@ -84,7 +127,11 @@ export default function NotificationsButton() {
           { cache: "no-store" }
         );
         const payload = await response.json();
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (!response.ok) {
+          if (!hasLoadedRef.current) setStatus("error");
+          return;
+        }
         const nextNotifications = (payload.data ?? []) as NotificationItem[];
 
         if (!hasLoadedRef.current) {
@@ -107,8 +154,10 @@ export default function NotificationsButton() {
         }
 
         setNotifications(nextNotifications);
+        setStatus("ready");
       } catch {
-        // silently ignore — network error or API not yet available
+        // Network error or API not yet available. Only surface it if nothing has loaded yet.
+        if (!cancelled && !hasLoadedRef.current) setStatus("error");
       }
     }
 
@@ -121,7 +170,7 @@ export default function NotificationsButton() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [walletAddress]);
+  }, [walletAddress, reloadKey]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -176,62 +225,140 @@ export default function NotificationsButton() {
     return null;
   }
 
+  function toggle() {
+    if (!open) setHighlightedIds(new Set(notifications.filter((item) => !item.read_at).map((item) => item.id)));
+    setOpen(!open);
+  }
+
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen((value) => !value)}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/75 transition hover:border-white/20 hover:text-white"
-        aria-label="Notifications"
+        type="button"
+        onClick={toggle}
+        className="icon-button relative"
+        aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
         aria-expanded={open}
+        aria-controls={panelId}
       >
-        <Bell size={16} />
+        <Bell size={18} aria-hidden="true" />
         {unreadCount ? (
-          <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-emerald-300 px-1 text-[10px] font-semibold text-black">
-            {unreadCount}
-          </span>
+          <span
+            aria-hidden="true"
+            className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-panel"
+          />
         ) : null}
       </button>
 
       {open ? (
-        <div className="fixed inset-x-4 top-20 max-h-[70vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-96 rounded-3xl border border-white/10 bg-[#0a0a0a]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-          <div className="mb-2 flex items-center justify-between px-3">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Notifications</div>
-            <span className="text-xs text-white/40">{notifications.length} recent</span>
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Notifications"
+          className={`${popoverPosition} flex max-h-[min(560px,calc(100dvh-96px))] flex-col overflow-hidden rounded-card border border-line bg-panel shadow-pop`}
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5">
+            <h2 className="text-base font-semibold text-fg">Notifications</h2>
+            {status === "ready" && notifications.length ? (
+              <span className="text-[14px] text-muted">
+                {highlightedIds.size ? `${highlightedIds.size} new` : `${notifications.length} recent`}
+              </span>
+            ) : null}
           </div>
-          <div className="space-y-2">
-            {notifications.length ? (
-              notifications.map((item) => {
-                const content = (
-                  <div
-                    className={`rounded-2xl px-3 py-2 text-sm transition mb-2 ${item.read_at
-                        ? "bg-white/5 text-white/70"
-                        : "bg-white/10 text-white"
-                      }`}
-                  >
-                    <div className="font-medium">{item.title}</div>
-                    <div className="mt-1 text-sm text-white/55">{item.body}</div>
-                    <div className="mt-3 text-[11px] uppercase tracking-[0.2em] text-white/30">
-                      {new Intl.DateTimeFormat("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      }).format(new Date(item.created_at))}
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {status === "loading" ? (
+              <div aria-busy="true" className="divide-y divide-line">
+                <span className="sr-only">Loading…</span>
+                {[0, 1, 2].map((index) => (
+                  <div key={index} className="flex gap-3 px-4 py-3.5" aria-hidden="true">
+                    <span className="skeleton h-8 w-8 shrink-0 rounded-control" />
+                    <div className="flex-1 space-y-2 pt-0.5">
+                      <span className="skeleton block h-4 w-3/5" />
+                      <span className="skeleton block h-3.5 w-4/5" />
                     </div>
                   </div>
-                );
+                ))}
+              </div>
+            ) : status === "error" ? (
+              <div className="empty-state px-6 py-10">
+                <div className="empty-state-icon">
+                  <XCircle size={22} aria-hidden="true" />
+                </div>
+                <h3>Couldn’t load notifications</h3>
+                <p role="alert">Check your connection and try again.</p>
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((key) => key + 1)}
+                  className="btn btn-secondary btn-sm mt-4"
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  Try again
+                </button>
+              </div>
+            ) : notifications.length ? (
+              <ul className="divide-y divide-line">
+                {notifications.map((item) => {
+                  const unread = highlightedIds.has(item.id) || !item.read_at;
+                  const { icon: LevelIcon, tone } = levelStyles[item.level] ?? levelStyles.info;
+                  const content = (
+                    <div
+                      className={`relative flex gap-3 px-4 py-3.5 transition-colors ${
+                        item.href ? "hover:bg-subtle" : ""
+                      } ${unread ? "bg-accent/[0.04]" : ""}`}
+                    >
+                      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-control border ${tone}`}>
+                        <LevelIcon size={16} aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className={`text-sm leading-snug ${unread ? "font-semibold text-fg" : "font-medium text-fg-2"}`}>
+                            {item.title}
+                          </p>
+                          <time
+                            dateTime={item.created_at}
+                            title={formatAbsolute(item.created_at)}
+                            className="shrink-0 pt-px text-xs text-faint"
+                          >
+                            {formatRelative(item.created_at)}
+                          </time>
+                        </div>
+                        <p className="mt-1 text-[14px] leading-relaxed text-muted">{item.body}</p>
+                      </div>
+                      {unread ? (
+                        <>
+                          <span aria-hidden="true" className="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-accent" />
+                          <span className="sr-only">Unread.</span>
+                        </>
+                      ) : null}
+                    </div>
+                  );
 
-                return item.href ? (
-                  <Link key={item.id} href={item.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={item.id}>{content}</div>
-                );
-              })
+                  return (
+                    <li key={item.id}>
+                      {item.href ? (
+                        <Link
+                          href={item.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setOpen(false)}
+                          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60"
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        content
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
-              <div className="rounded-2xl bg-white/5 px-3 py-4 text-sm text-white/55">
-                You’re all caught up. Updates about confirmed payments will appear here.
+              <div className="empty-state px-6 py-10">
+                <div className="empty-state-icon">
+                  <BellOff size={22} aria-hidden="true" />
+                </div>
+                <h3>You’re all caught up</h3>
+                <p>When a customer pays an invoice or payment link, you’ll get a notification here.</p>
               </div>
             )}
           </div>
@@ -239,24 +366,34 @@ export default function NotificationsButton() {
       ) : null}
 
       {toastNotification ? (
-        <div className="fixed inset-x-4 top-20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-80 rounded-3xl border border-emerald-300/30 bg-[#07110c]/95 p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-300/80">New payment</div>
-          <div className="mt-2 text-sm font-medium">{toastNotification.title}</div>
-          <div className="mt-1 text-sm text-white/65">{toastNotification.body}</div>
-          {toastNotification.href ? (
-            <Link
-              href={toastNotification.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => {
-                setToastNotification(null);
-                setOpen(false);
-              }}
-              className="mt-3 inline-flex text-xs text-emerald-300 underline underline-offset-4"
-            >
-              Open
-            </Link>
-          ) : null}
+        <div
+          role="status"
+          className={`${popoverPosition} rounded-card border border-success/30 bg-panel p-4 shadow-pop sm:w-[340px]`}
+        >
+          <div className="flex gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-control border border-success/25 bg-success/10 text-success">
+              <CheckCircle2 size={16} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-medium text-success">New payment</p>
+              <p className="mt-0.5 text-sm font-semibold text-fg">{toastNotification.title}</p>
+              <p className="mt-1 text-[14px] leading-relaxed text-muted">{toastNotification.body}</p>
+              {toastNotification.href ? (
+                <Link
+                  href={toastNotification.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => {
+                    setToastNotification(null);
+                    setOpen(false);
+                  }}
+                  className="link mt-2 inline-flex text-[14px]"
+                >
+                  View payment
+                </Link>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

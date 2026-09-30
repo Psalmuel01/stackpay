@@ -1,9 +1,20 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import GlassCard from "@/components/GlassCard";
+import { CircleAlert, CircleCheck, Link2Off, Minus, Plus } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
 import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
+import {
+  AmountDisplay,
+  CheckoutNotFound,
+  CheckoutShell,
+  CheckoutSkeleton,
+  CopyValue,
+  DetailList,
+  DetailRow,
+  PaymentProgress,
+  TicketDivider,
+} from "@/components/checkout/Checkout";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
 type RemotePaymentLink = {
@@ -38,10 +49,6 @@ function defaultAmountConfig(currency: Currency) {
   return { defaultAmount: 25, amountStep: 25 };
 }
 
-function truncateAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
 function sanitizeDecimalInput(value: string) {
   const sanitized = value.replace(/[^0-9.]/g, "");
   const [whole = "", ...fractionParts] = sanitized.split(".");
@@ -73,9 +80,15 @@ export default function PublicPaymentLinkPage({
   const [email, setEmail] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  // Presentation-only: which step of checkout the customer is in.
+  const [phase, setPhase] = useState<"idle" | "signing" | "confirming">("idle");
 
   useEffect(() => {
     setConnectedAddress(getConnectedWalletAddress());
+    // Pick up connects/disconnects made through ConnectWalletButton on this page.
+    const sync = () => setConnectedAddress(getConnectedWalletAddress());
+    window.addEventListener("stackpay:auth", sync);
+    return () => window.removeEventListener("stackpay:auth", sync);
   }, []);
 
   useEffect(() => {
@@ -139,10 +152,10 @@ export default function PublicPaymentLinkPage({
     }
 
     return remoteLink.is_universal
-      ? "Enter any amount, choose an asset, and pay from the same permanent route."
+      ? "Enter the amount you want to pay."
       : isSuggestedMultipay
-        ? "Choose one of the preset amounts and continue straight into payment."
-        : "This reusable payment route uses one exact amount and description for every purchase.";
+        ? "Choose an amount."
+        : "Fixed price.";
   }, [isSuggestedMultipay, remoteLink]);
 
   async function handleContinue() {
@@ -172,6 +185,7 @@ export default function PublicPaymentLinkPage({
     setSubmitting(true);
     setError(null);
     setSuccessMessage(null);
+    setPhase("signing");
 
     try {
       const response = await fetch(`/api/payment-links/public/${params.slug}/invoices`, {
@@ -198,10 +212,12 @@ export default function PublicPaymentLinkPage({
 
       await submitContractIntent(contractIntent, {
         onCancel: () => {
-          setError("Contract call was canceled.");
+          setError("The request was canceled in your wallet. You can try again.");
           setSubmitting(false);
+          setPhase("idle");
         },
         onFinish: async ({ txId }) => {
+          setPhase("confirming");
           try {
             for (let attempt = 0; attempt < 20; attempt += 1) {
               const confirmResponse = await fetch(
@@ -230,8 +246,8 @@ export default function PublicPaymentLinkPage({
               if (confirmPayload.data?.sync?.status === "success" && confirmPayload.data?.sync?.onchainInvoiceId) {
                 setSuccessMessage(
                   remoteLink.is_universal
-                    ? "Invoice generated successfully. Redirecting to checkout..."
-                    : "Secure checkout is ready. Redirecting now..."
+                    ? "Your invoice is ready. Taking you to payment…"
+                    : "Your checkout is ready. Taking you to payment…"
                 );
                 router.push(`/pay/${confirmPayload.data.sync.onchainInvoiceId}`);
                 return;
@@ -253,215 +269,252 @@ export default function PublicPaymentLinkPage({
             setError(syncError instanceof Error ? syncError.message : "Failed to confirm invoice.");
           } finally {
             setSubmitting(false);
+            setPhase("idle");
           }
         },
       });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to create invoice.");
       setSubmitting(false);
+      setPhase("idle");
     }
   }
 
   if (loadingRemote) {
-    return (
-      <main className="flex min-h-screen items-center px-6 py-12">
-        <div className="mx-auto w-full max-w-3xl">
-          <GlassCard className="border border-white/20">
-            <div className="space-y-3">
-              <div className="text-xs uppercase tracking-[0.35em] text-white/40">Loading checkout</div>
-              <div className="h-10 w-64 rounded-2xl bg-white/10" />
-              <div className="h-4 w-full max-w-xl rounded-full bg-white/10" />
-              <div className="h-4 w-3/4 rounded-full bg-white/10" />
-            </div>
-          </GlassCard>
-        </div>
-      </main>
-    );
+    return <CheckoutSkeleton label="Loading checkout…" />;
   }
 
   if (!remoteLink) {
     return (
-      <main className="flex min-h-screen items-center px-6 py-12">
-        <div className="mx-auto w-full max-w-3xl">
-          <GlassCard>
-            <div className="text-3xl font-semibold text-white">Payment link not found</div>
-            <div className="mt-3 text-sm text-white/60">
-              This public payment route could not be found.
-            </div>
-          </GlassCard>
-        </div>
-      </main>
+      <CheckoutNotFound icon={<Link2Off size={22} />} title="This payment link isn’t available">
+        <p>
+          The link may be incomplete, or the business may have turned it off. Check the link you were sent, or contact
+          the business for a new one.
+        </p>
+      </CheckoutNotFound>
     );
   }
 
+  const numericAmount = Number(amount);
+  const hasAmount = Boolean(amount) && Number.isFinite(numericAmount) && numericAmount > 0;
+  const amountLabel = hasAmount ? formatCurrencyAmount(numericAmount, selectedCurrency) : null;
+
+  function stepAmount(direction: 1 | -1) {
+    if (!remoteLink) {
+      return;
+    }
+    const base = Number(amount || remoteLink.default_amount || defaultAmountConfig(selectedCurrency).defaultAmount || 0);
+    const next = Math.max(amountStep > 0 ? amountStep : 0.001, Math.round((base + direction * amountStep) * 1000) / 1000);
+    setAmount(String(next));
+  }
+
   return (
-    <main className="flex min-h-screen items-center px-6 py-12">
-      <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-6">
-          <div>
-            <div className="text-xs uppercase tracking-[0.35em] text-white/40">
-              {remoteLink.is_universal ? "Universal payment route" : "MultiPay route"}
+    <CheckoutShell merchantName={merchantName}>
+      <section className="card overflow-hidden" aria-labelledby="checkout-title">
+        <div className="p-5 sm:p-6">
+          <h2 id="checkout-title" className="text-xl font-semibold text-fg">{remoteLink.title}</h2>
+          {remoteLink.description ? (
+            <p className="mt-1.5 text-base leading-7 text-fg-2">{remoteLink.description}</p>
+          ) : null}
+
+          {availableCurrencies.length > 1 ? (
+            <div className="mt-6">
+              <p id="currency-label" className="label">Pay with</p>
+              <div className="segmented flex w-full" role="group" aria-labelledby="currency-label">
+                {availableCurrencies.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    aria-pressed={selectedCurrency === item}
+                    className="flex-1"
+                    onClick={() => {
+                      setSelectedCurrency(item);
+                      setAmount(
+                        String(
+                          suggestedAmounts[0] ?? remoteLink.default_amount ?? defaultAmountConfig(item).defaultAmount
+                        )
+                      );
+                    }}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h1 className="mt-3 text-4xl font-semibold text-white">{remoteLink.title}</h1>
-            <p className="mt-3 max-w-2xl text-sm text-white/60">{pageSummary}</p>
-          </div>
+          ) : null}
 
-          <GlassCard className="border border-white/20">
-            <div className="grid gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-                Merchant: {merchantName}
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-                Assets: {availableCurrencies.join(", ")}
-              </div>
-              {remoteLink.merchant?.settlement_wallet ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-                  Settlement wallet: {truncateAddress(remoteLink.merchant.settlement_wallet)}
-                </div>
-              ) : null}
-              {remoteLink.description ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-                  {remoteLink.description}
-                </div>
-              ) : null}
+          <div className="mt-6">
+            <p className="text-sm font-medium text-muted" id="amount-label">Amount</p>
+            <div aria-live="polite">
+              <AmountDisplay amount={hasAmount ? numericAmount : 0} currency={selectedCurrency} className="mt-1" />
             </div>
-          </GlassCard>
-        </div>
+            <p className="mt-1 text-sm text-muted">{pageSummary}</p>
 
-        <GlassCard className="border border-white/20">
-          <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Checkout</div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {remoteLink.is_universal ? "Generate invoice" : "Pay now"}
-          </div>
-
-          <div className="mt-4 text-sm text-white/60">
-            {connectedAddress ? `Connected wallet ${connectedAddress}` : "Connect a Stacks wallet to continue."}
-          </div>
-          <div className="mt-4">
-            <ConnectWalletButton />
-          </div>
-
-          <div className="mt-6 space-y-3">
-            {availableCurrencies.length > 1 ? (
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">Pay with</div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {availableCurrencies.map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setSelectedCurrency(item);
-                        setAmount(
-                          String(
-                            suggestedAmounts[0] ?? remoteLink.default_amount ?? defaultAmountConfig(item).defaultAmount
-                          )
-                        );
-                      }}
-                      className={`rounded-full px-4 py-3 text-sm transition ${
-                        selectedCurrency === item
-                          ? "border border-white/20 bg-white text-black"
-                          : "border border-white/10 bg-white/5 text-white/70"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">Amount</div>
-              {remoteLink.is_universal ? (
-                <>
-                  <div className="mt-3 flex items-center gap-3">
-                    <button
-                      onClick={() => {
-                        const base = Number(amount || remoteLink.default_amount || defaultAmountConfig(selectedCurrency).defaultAmount || 0);
-                        const next = Math.max(amountStep > 0 ? amountStep : 0.001, Math.round((base - amountStep) * 1000) / 1000);
-                        setAmount(String(next));
-                      }}
-                      className="h-12 w-12 rounded-full border border-white/10 bg-black/20 text-xl text-white/75"
-                    >
-                      -
-                    </button>
-                    <div className="flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-lg font-semibold text-white">
-                      {amount ? formatCurrencyAmount(Number(amount), selectedCurrency) : `0 ${selectedCurrency}`}
-                    </div>
-                    <button
-                      onClick={() => {
-                        const base = Number(amount || remoteLink.default_amount || defaultAmountConfig(selectedCurrency).defaultAmount || 0);
-                        const next = Math.max(amountStep > 0 ? amountStep : 0.001, Math.round((base + amountStep) * 1000) / 1000);
-                        setAmount(String(next));
-                      }}
-                      className="h-12 w-12 rounded-full border border-white/10 bg-black/20 text-xl text-white/75"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {remoteLink.allow_custom_amount ? (
+            {remoteLink.is_universal ? (
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => stepAmount(-1)}
+                  className="btn btn-secondary btn-icon h-11 w-11 shrink-0"
+                  aria-label={`Decrease by ${amountStep} ${selectedCurrency}`}
+                >
+                  <Minus size={18} aria-hidden="true" />
+                </button>
+                {remoteLink.allow_custom_amount ? (
+                  <div className="relative min-w-0 flex-1">
+                    <label htmlFor="custom-amount" className="sr-only">Custom amount in {selectedCurrency}</label>
                     <input
-                      className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75 outline-none"
+                      id="custom-amount"
+                      className="field pr-20 tabular-nums"
                       value={amount}
                       onChange={(event) => setAmount(sanitizeDecimalInput(event.target.value))}
-                      placeholder={`Enter amount in ${selectedCurrency}`}
+                      placeholder="0.00"
                       inputMode="decimal"
                     />
-                  ) : null}
-                </>
-              ) : isSuggestedMultipay ? (
-                <div className="mt-3 grid gap-2">
-                  {suggestedAmounts.map((suggestedAmount) => (
-                    <button
-                      key={suggestedAmount}
-                      type="button"
-                      onClick={() => setAmount(String(suggestedAmount))}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                        Number(amount) === suggestedAmount
-                          ? "border-white/20 bg-white text-black"
-                          : "border-white/10 bg-black/20 text-white/80"
-                      }`}
-                    >
-                      {formatCurrencyAmount(suggestedAmount, selectedCurrency)}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-center text-lg font-semibold text-white">
-                  {amount ? formatCurrencyAmount(Number(amount), selectedCurrency) : `0 ${selectedCurrency}`}
-                </div>
-              )}
-            </div>
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted">
+                      {selectedCurrency}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="min-w-0 flex-1 text-center text-sm text-muted">
+                    Adjust in steps of {amountStep} {selectedCurrency}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => stepAmount(1)}
+                  className="btn btn-secondary btn-icon h-11 w-11 shrink-0"
+                  aria-label={`Increase by ${amountStep} ${selectedCurrency}`}
+                >
+                  <Plus size={18} aria-hidden="true" />
+                </button>
+              </div>
+            ) : isSuggestedMultipay ? (
+              <div className="mt-4 flex flex-wrap gap-2" role="group" aria-labelledby="amount-label">
+                {suggestedAmounts.map((suggestedAmount) => (
+                  <button
+                    key={suggestedAmount}
+                    type="button"
+                    aria-pressed={Number(amount) === suggestedAmount}
+                    onClick={() => setAmount(String(suggestedAmount))}
+                    className="chip min-h-[40px] tabular-nums"
+                  >
+                    {formatCurrencyAmount(suggestedAmount, selectedCurrency)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
 
+        {remoteLink.merchant?.settlement_wallet ? (
+          <div className="border-t border-line px-5 py-1.5 sm:px-6">
+            <DetailList>
+              <DetailRow term="Pays to">
+                <span className="block font-medium text-fg">{merchantName}</span>
+                <span className="mt-0.5 block">
+                  <CopyValue value={remoteLink.merchant.settlement_wallet} label="Recipient address" />
+                </span>
+              </DetailRow>
+            </DetailList>
+          </div>
+        ) : null}
+
+        <TicketDivider />
+        <div className="space-y-5 p-5 sm:p-6">
+          <div>
+            <label htmlFor="receipt-email" className="label">
+              Email for receipt <span className="font-normal text-muted">(optional)</span>
+            </label>
             <input
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75 outline-none"
+              id="receipt-email"
+              className="field"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="Receipt email (optional)"
+              placeholder="you@example.com"
               autoComplete="email"
             />
-            {remoteLink.is_universal ? (
+          </div>
+          {remoteLink.is_universal ? (
+            <div>
+              <label htmlFor="payment-note" className="label">
+                What’s this for? <span className="font-normal text-muted">(optional)</span>
+              </label>
               <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75 outline-none"
+                id="payment-note"
+                className="field"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Description (optional)"
+                placeholder="Order number, table, or a short note"
               />
-            ) : null}
+            </div>
+          ) : null}
 
+          {connectedAddress ? (
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-fg">Paying from</p>
+                <p className="text-sm text-muted">Your connected Stacks wallet</p>
+              </div>
+              <div className="shrink-0">
+                <ConnectWalletButton />
+              </div>
+            </div>
+          ) : null}
+
+          {successMessage ? (
+            <div role="status" className="alert alert-success">
+              <CircleCheck size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <p>{successMessage}</p>
+            </div>
+          ) : phase === "signing" ? (
+            <PaymentProgress title="Approve the request in your wallet">
+              This creates your invoice. You’ll pay it on the next screen.
+            </PaymentProgress>
+          ) : phase === "confirming" ? (
+            <PaymentProgress title="Preparing your checkout…">
+              This can take a minute. Keep this page open.
+            </PaymentProgress>
+          ) : null}
+
+          {error ? (
+            <div role="alert" className="alert alert-danger">
+              <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-medium">Something went wrong</p>
+                <p className="mt-0.5 break-words text-fg-2">{error}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {connectedAddress ? (
             <button
+              type="button"
               onClick={() => void handleContinue()}
               disabled={submitting}
-              className="w-full rounded-full border border-white/20 bg-white px-5 py-3 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary btn-lg w-full"
             >
-              {submitting ? "Generating..." : remoteLink.is_universal ? "Generate invoice" : "Continue to payment"}
+              {submitting
+                ? phase === "confirming"
+                  ? "Preparing checkout…"
+                  : "Waiting for wallet…"
+                : amountLabel
+                  ? `Continue with ${amountLabel}`
+                  : "Continue to payment"}
             </button>
-            {successMessage ? <div className="text-sm text-emerald-300">{successMessage}</div> : null}
-            {error ? <div className="text-sm text-red-300">{error}</div> : null}
-          </div>
-        </GlassCard>
-      </div>
-    </main>
+          ) : (
+            <div className="border-t border-line pt-5">
+              <ConnectWalletButton variant="inline" />
+            </div>
+          )}
+          <p className="text-center text-sm text-muted">
+            {connectedAddress
+              ? "Next, approve an invoice in your wallet, then pay it."
+              : "Connect a Stacks wallet such as Leather or Xverse to continue."}
+          </p>
+        </div>
+      </section>
+    </CheckoutShell>
   );
 }

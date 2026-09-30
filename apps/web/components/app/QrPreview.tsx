@@ -1,45 +1,108 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import { QrCode } from "lucide-react";
+import { cn } from "@/components/cn";
+
+/**
+ * Renders a real, scannable QR code for `value` (a full URL).
+ * Without a `value` a calm placeholder is shown instead — we never draw a fake code.
+ * The code always sits on a pure white tile so it scans in both themes.
+ */
 export default function QrPreview({
-  label = "stackpay://pay/invoice/6E71A3",
-  caption = "Universal QR route",
+  value,
+  label,
+  caption,
+  size = 220,
+  className,
 }: {
+  /** The exact string to encode, e.g. https://stackpay.app/pay/link/lumen. */
+  value?: string | null;
+  /** Display text shown under the code. Defaults to `value`. Never encoded. */
   label?: string;
   caption?: string;
+  /** Rendered edge length of the code tile in px. */
+  size?: number;
+  className?: string;
 }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSvg(null);
+    setFailed(false);
+
+    if (!value) {
+      return;
+    }
+
+    QRCode.toString(value, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0a0a0a", light: "#ffffff" } })
+      .then((markup) => {
+        if (!cancelled) {
+          setSvg(markup);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
+  const displayText = label ?? value ?? "";
+  const hasCode = Boolean(value) && !failed;
+
   return (
-    <div className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_55%,transparent)] p-6">
-      <div className="mx-auto grid w-[220px] grid-cols-7 gap-2 rounded-[28px] border border-white/10 bg-[#101010] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        {Array.from({ length: 49 }).map((_, index) => {
-          const active = [
-            0, 1, 2, 7, 9, 14, 15, 16, 4, 5, 6, 11, 13, 18, 19, 20, 28, 29, 30,
-            35, 37, 42, 43, 44, 32, 33, 34, 39, 41, 46, 47, 48, 22, 24, 26, 31,
-            38, 40, 10, 17, 21, 23, 25, 27,
-          ].includes(index);
-
-          const corner =
-            index < 3 ||
-            (index > 6 && index < 10) ||
-            (index > 13 && index < 17) ||
-            (index > 3 && index < 7) ||
-            (index > 31 && index < 35) ||
-            (index > 38 && index < 42) ||
-            (index > 45 && index < 49);
-
-          return (
+    <figure className={cn("flex flex-col items-center text-center", className)}>
+      {hasCode ? (
+        // Pure white tile on purpose: scanners need dark modules on a light quiet zone in either theme.
+        <div
+          className="rounded-xl border border-line bg-white p-3 shadow-sm"
+          style={{ width: size + 24, maxWidth: "100%" }}
+        >
+          {svg ? (
             <div
-              key={index}
-              className={`aspect-square rounded-[4px] ${
-                active ? "bg-white" : "bg-white/8"
-              } ${corner && active ? "shadow-[0_0_12px_rgba(245,158,11,0.28)]" : ""}`}
+              role="img"
+              aria-label={`QR code for ${value}`}
+              className="aspect-square w-full [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
+              dangerouslySetInnerHTML={{ __html: svg }}
             />
-          );
-        })}
-      </div>
-      <div className="mt-5 text-center">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">
-          {caption}
+          ) : (
+            <div className="aspect-square w-full animate-pulse rounded-md bg-[#ececec]" aria-hidden="true" />
+          )}
         </div>
-        <div className="mt-2 font-mono text-xs text-white/70">{label}</div>
-      </div>
-    </div>
+      ) : (
+        <div
+          className="grid aspect-square place-items-center rounded-xl border border-dashed border-line-strong bg-subtle p-6"
+          style={{ width: size + 24, maxWidth: "100%" }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <span className="empty-state-icon !mb-0" aria-hidden="true">
+              <QrCode size={22} />
+            </span>
+            <p className="max-w-[180px] text-sm text-muted">
+              {failed ? "This QR code couldn’t be generated." : "Your QR code appears here"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {caption || (hasCode && displayText) ? (
+        <figcaption className="mt-4 w-full min-w-0">
+          {caption ? <div className="text-sm font-medium text-fg-2">{caption}</div> : null}
+          {hasCode && displayText ? (
+            <div className="mx-auto mt-1 max-w-full truncate font-mono text-sm text-muted" title={displayText}>
+              {displayText}
+            </div>
+          ) : null}
+        </figcaption>
+      ) : null}
+    </figure>
   );
 }

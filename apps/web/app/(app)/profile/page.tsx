@@ -2,8 +2,10 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
-import GlassCard from "@/components/GlassCard";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Loader2, Pencil, Store, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
+import { CheckoutPreview, CopyButton, ProfileSection } from "@/components/app/profile/ProfileParts";
 import { getConnectedWalletAddress } from "@/lib/stacks";
 
 type MerchantProfile = {
@@ -15,10 +17,6 @@ type MerchantProfile = {
   webhook_url?: string | null;
   default_currency?: "sBTC" | "STX" | "USDCx";
 };
-
-function truncateAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -195,144 +193,295 @@ export default function ProfilePage() {
   const resolvedSettlement = settlementDraft || profile.settlement_wallet || connectedAddress || "";
   const merchantName = (profile.company_name || profile.display_name || "").trim();
   const derivedSlug = previewSlug(profile.company_name ?? "", profile.slug ?? "");
+  const loading = profile.settlement_wallet === undefined;
+  const isNew = !loading && !profile.slug;
+  const settlementIsConnected = Boolean(connectedAddress) && resolvedSettlement === connectedAddress;
 
   return (
-    <div>
+    <div className="max-w-5xl">
       <PageHeader
-        title="Profile"
-        subtitle="Save your merchant identity and payout settings before creating invoices or public payment routes."
+        title="Merchant profile"
+        subtitle="Your business name appears on every checkout, invoice and receipt. Payouts go to your settlement wallet."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <GlassCard>
-          <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">Merchant profile</div>
-          <form onSubmit={handleSave} className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70"
-                value={profile.company_name ?? ""}
-                onChange={(event) => updateField("company_name", event.target.value)}
-                placeholder="Business name"
-              />
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70"
-                value={profile.display_name ?? ""}
-                onChange={(event) => updateField("display_name", event.target.value)}
-                placeholder="Display name"
-                required
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70"
-                type="email"
-                value={profile.email ?? ""}
-                onChange={(event) => updateField("email", event.target.value)}
-                placeholder="Email address"
-                autoComplete="email"
-                required
-              />
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                {derivedSlug || "merchant slug"}
+      {loading ? (
+        <ProfileSkeleton />
+      ) : (
+        <form onSubmit={handleSave} className="space-y-4">
+          {isNew ? (
+            <div className="card flex gap-4 border-accent/30 bg-accent/5 p-5 sm:p-6">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent-text" aria-hidden="true">
+                <Store size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-fg">Set up your merchant profile</h2>
+                <p className="mt-1 text-sm leading-relaxed text-fg-2">
+                  Add your business name and a contact email, then save. You need a saved profile before you can create
+                  invoices, payment links or a Universal QR code.
+                </p>
               </div>
             </div>
-            <input
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70"
-              value={profile.webhook_url ?? ""}
-              onChange={(event) => updateField("webhook_url", event.target.value)}
-              placeholder="Webhook endpoint"
-            />
+          ) : null}
 
-            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Settlement wallet</div>
-                  <div className="mt-2 text-sm text-white/80">
-                    {resolvedSettlement ? truncateAddress(resolvedSettlement) : "Will default to the connected wallet"}
-                  </div>
-                  <div className="mt-2 text-xs text-white/45">
-                    StackPay sends invoice payouts to this address. If you leave it empty, the connected wallet is used.
-                  </div>
+          <ProfileSection
+            id="business-title"
+            title="Business details"
+            description="Customers see your business name at the top of every checkout, invoice and receipt."
+          >
+            <div>
+              <label className="label" htmlFor="company-name">
+                Business name
+              </label>
+              <input
+                id="company-name"
+                className="field"
+                value={profile.company_name ?? ""}
+                onChange={(event) => updateField("company_name", event.target.value)}
+                placeholder="e.g. Lumen Studio Ltd"
+                autoComplete="organization"
+                aria-describedby="company-name-hint"
+              />
+              <p id="company-name-hint" className="hint text-sm">
+                Your public name. Use at least 7 characters.
+              </p>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="display-name">
+                  Display name
+                </label>
+                <input
+                  id="display-name"
+                  className="field"
+                  value={profile.display_name ?? ""}
+                  onChange={(event) => updateField("display_name", event.target.value)}
+                  placeholder="e.g. Lumen"
+                  aria-describedby="display-name-hint"
+                  required
+                />
+                <p id="display-name-hint" className="hint text-sm">
+                  A shorter name for your console. Shown if no business name is set.
+                </p>
+              </div>
+
+              <div>
+                <label className="label" htmlFor="merchant-handle">
+                  Merchant handle
+                </label>
+                <input
+                  id="merchant-handle"
+                  className="field font-mono placeholder:font-sans"
+                  value={derivedSlug}
+                  placeholder="Created when you save"
+                  readOnly
+                  aria-describedby="merchant-handle-hint"
+                />
+                <p id="merchant-handle-hint" className="hint text-sm">
+                  {profile.slug
+                    ? "Your permanent merchant ID. It stays the same if you rename your business."
+                    : "Generated from your business name the first time you save."}
+                </p>
+              </div>
+            </div>
+
+            <CheckoutPreview name={merchantName} />
+          </ProfileSection>
+
+          <ProfileSection
+            id="payouts-title"
+            title="Payouts"
+            description="Where StackPay sends money from paid invoices. It can be your connected wallet or any other Stacks address you control."
+          >
+            <div>
+              <div className="mb-2 flex min-h-9 items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-fg-2" id="settlement-label">
+                    Settlement wallet
+                  </span>
+                  {settlementIsConnected && !editingSettlement ? (
+                    <span className="badge badge-neutral">Connected wallet</span>
+                  ) : null}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingSettlement((current) => !current);
-                    setSettlementDraft(profile.settlement_wallet ?? connectedAddress ?? "");
-                  }}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/75"
-                >
-                  {editingSettlement ? "Close" : profile.settlement_wallet ? "Change" : "Set wallet"}
-                </button>
+                {!editingSettlement ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSettlement((current) => !current);
+                      setSettlementDraft(profile.settlement_wallet ?? connectedAddress ?? "");
+                    }}
+                    className="btn btn-secondary btn-sm shrink-0"
+                  >
+                    <Pencil size={15} aria-hidden="true" />
+                    {profile.settlement_wallet ? "Change" : "Set wallet"}
+                  </button>
+                ) : null}
               </div>
 
               {editingSettlement ? (
-                <div className="mt-4 space-y-3">
+                <div className="well space-y-4 p-4">
                   <input
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70"
+                    id="settlement-wallet"
+                    className="field font-mono"
+                    aria-labelledby="settlement-label"
+                    aria-describedby="settlement-hint"
                     value={settlementDraft}
                     onChange={(event) => setSettlementDraft(event.target.value)}
                     placeholder={connectedAddress ?? "Connect wallet first"}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setSettlementDraft(connectedAddress ?? "")}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/75"
-                  >
-                    Use connected wallet
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSettlementDraft(connectedAddress ?? "")}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      <Wallet size={16} aria-hidden="true" />
+                      Use connected wallet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSettlement((current) => !current);
+                        setSettlementDraft(profile.settlement_wallet ?? connectedAddress ?? "");
+                      }}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="well flex items-center gap-3 py-2 pl-4 pr-2">
+                  <span className="min-w-0 flex-1 break-all py-1 font-mono text-sm text-fg" aria-labelledby="settlement-label">
+                    {resolvedSettlement || "Uses your connected wallet"}
+                  </span>
+                  <CopyButton value={resolvedSettlement} label="settlement wallet address" />
+                </div>
+              )}
+              <p id="settlement-hint" className="hint text-sm">
+                Leave it empty to receive payouts in your connected wallet. Changes take effect when you save.
+              </p>
             </div>
 
-            <button
-              disabled={saving}
-              className="rounded-full border border-white/20 bg-white px-5 py-2 text-sm font-semibold text-black disabled:opacity-60"
-            >
-              {saving ? "Saving..." : "Save changes"}
+            <div>
+              <span className="label" id="connected-label">
+                Connected wallet
+              </span>
+              <div className="well flex items-center gap-3 py-2 pl-4 pr-2">
+                <span className="min-w-0 flex-1 break-all py-1 font-mono text-sm text-fg-2" aria-labelledby="connected-label">
+                  {connectedAddress ?? "No wallet connected"}
+                </span>
+                {connectedAddress ? <CopyButton value={connectedAddress} label="connected wallet address" /> : null}
+              </div>
+              <p className="hint text-sm">
+                Signs invoices and other on-chain actions for your account. To use a different one, switch wallets from the top bar.
+              </p>
+            </div>
+          </ProfileSection>
+
+          <ProfileSection
+            id="contact-title"
+            title="Contact & notifications"
+            description="How StackPay reaches you and your systems. Neither is shown to customers."
+          >
+            <div>
+              <label className="label" htmlFor="email">
+                Account email
+              </label>
+              <input
+                id="email"
+                className="field"
+                type="email"
+                value={profile.email ?? ""}
+                onChange={(event) => updateField("email", event.target.value)}
+                placeholder="you@business.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="webhook-url">
+                Webhook endpoint <span className="font-normal text-muted">(optional)</span>
+              </label>
+              <input
+                id="webhook-url"
+                className="field font-mono"
+                inputMode="url"
+                value={profile.webhook_url ?? ""}
+                onChange={(event) => updateField("webhook_url", event.target.value)}
+                placeholder="https://yourbusiness.com/webhooks"
+                aria-describedby="webhook-hint"
+                spellCheck={false}
+              />
+              <p id="webhook-hint" className="hint text-sm">
+                We&apos;ll send payment events to this URL so your backend stays in sync.{" "}
+                <Link href="/docs" className="link">
+                  Webhook docs
+                </Link>
+              </p>
+            </div>
+          </ProfileSection>
+
+          {error ? (
+            <div className="alert alert-danger" role="alert">
+              <AlertCircle size={18} aria-hidden="true" className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          <div className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-sm text-muted" role="status" aria-live="polite">
+              {saving ? (
+                "Saving your profile…"
+              ) : saved ? (
+                <span className="inline-flex items-center gap-2 font-medium text-success">
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  Profile saved
+                </span>
+              ) : isNew ? (
+                "Save once to start taking payments."
+              ) : (
+                "Changes apply to checkouts once you save."
+              )}
+            </p>
+            <button type="submit" disabled={saving} className="btn btn-primary w-full sm:w-auto" aria-busy={saving}>
+              {saving ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : null}
+              {saving ? "Saving…" : isNew ? "Save profile" : "Save changes"}
             </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
 
-            {saved ? <div className="text-xs text-white/60">Merchant profile saved.</div> : null}
-            {error ? <div className="text-xs text-rose-300">{error}</div> : null}
-          </form>
-        </GlassCard>
-
-        <div className="grid gap-6">
-          <GlassCard>
-            <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">Connected wallet</div>
-            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-              <div className="text-[11px] uppercase tracking-[0.24em] text-white/35">Primary address</div>
-              <div className="mt-2 text-sm text-white/80">
-                {connectedAddress ? truncateAddress(connectedAddress) : "No wallet connected"}
-              </div>
-              <div className="mt-2 text-xs text-white/45">
-                This wallet is used to sign invoice creation transactions and acts as the default payout address until you set a separate settlement wallet.
-              </div>
+function ProfileSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <span className="sr-only">Loading…</span>
+      {[3, 2, 2].map((rows, index) => (
+        <div key={index} className="card p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-x-10">
+            <div className="space-y-4">
+              <div className="skeleton h-5 w-36" />
+              <div className="skeleton h-4 w-full max-w-[240px]" />
+              <div className="skeleton h-4 w-44" />
             </div>
-          </GlassCard>
-
-          <GlassCard>
-            {/* <div className="mb-4 text-sm uppercase tracking-[0.3em] text-white/40">Readiness</div> */}
-            <div className="grid gap-3">
-              <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Merchant name</div>
-                <div className="mt-2 text-sm text-white/80">
-                  {merchantName || "Add a business name"}
+            <div className="space-y-5">
+              {Array.from({ length: rows }).map((_, row) => (
+                <div key={row} className="space-y-2">
+                  <div className="skeleton h-4 w-28" />
+                  <div className="skeleton h-11 w-full" />
                 </div>
-              </div>
-              <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Settlement destination</div>
-                <div className="mt-2 text-sm text-white/80">
-                  {resolvedSettlement ? truncateAddress(resolvedSettlement) : "Waiting for wallet connection"}
-                </div>
-              </div>
-              {/* <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                Customers will see your saved merchant name on hosted invoices and QR routes. Finish this page first for a cleaner payment experience.
-              </div> */}
+              ))}
             </div>
-          </GlassCard>
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 }

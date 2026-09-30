@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import GlassCard from "@/components/GlassCard";
+import Link from "next/link";
+import { ArrowDownToLine, ArrowUpRight, CheckCircle2, History, Loader2, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
-import StatusBadge from "@/components/app/StatusBadge";
 import { type Currency, formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
@@ -29,6 +29,16 @@ type SettlementDashboardResponse = {
 };
 
 const currencies: Currency[] = ["sBTC", "STX", "USDCx"];
+
+const assets: Array<{ currency: Currency; mark: string; description: string }> = [
+  { currency: "sBTC", mark: "₿", description: "Bitcoin-backed" },
+  { currency: "STX", mark: "S", description: "Stacks" },
+  { currency: "USDCx", mark: "$", description: "US dollar-backed" },
+];
+
+function formatAmount(amount: number, currency: Currency) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: currency === "sBTC" ? 8 : 6 }).format(amount);
+}
 
 function sanitizeDecimalInput(value: string) {
   const sanitized = value.replace(/[^0-9.]/g, "");
@@ -242,201 +252,373 @@ export default function SettlementsPage() {
     }
   }
 
+  const runs = dashboard?.settlementRuns ?? [];
+  const merchantName = dashboard?.merchant?.company_name || dashboard?.merchant?.display_name || "Your business";
+  const defaultWallet = dashboard?.merchant?.settlement_wallet ?? null;
+
+  const header = (
+    <PageHeader
+      title="Settlements"
+      subtitle="Withdraw what customers have paid you from the StackPay processor to your wallet, and keep track of every withdrawal."
+    />
+  );
+
+  if (!walletAddress) {
+    return (
+      <div>
+        {header}
+        <section className="card">
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true">
+              <Wallet size={22} />
+            </span>
+            <h3>Connect a wallet to withdraw funds</h3>
+            <p>StackPay needs your merchant wallet to read your balances and send withdrawals.</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div aria-busy="true">
+        {header}
+        <span className="sr-only">Loading…</span>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {currencies.map((item) => (
+            <div key={item} className="card p-5 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="skeleton h-7 w-7 rounded-full" />
+                <div className="skeleton h-4 w-16" />
+              </div>
+              <div className="skeleton mt-5 h-8 w-32" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="card p-5 sm:p-6">
+            <div className="skeleton h-5 w-40" />
+            <div className="skeleton mt-6 h-11 w-64 max-w-full" />
+            <div className="skeleton mt-5 h-11 w-full" />
+            <div className="skeleton mt-5 h-11 w-full" />
+          </div>
+          <div className="card p-5 sm:p-6">
+            <div className="skeleton h-5 w-32" />
+            <div className="skeleton mt-4 h-4 w-full" />
+            <div className="skeleton mt-3 h-4 w-2/3" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader
-        title="Settlements"
-        subtitle="Withdraw merchant-held balances from the processor to your settlement wallet and keep a clean settlement history."
-      />
+      {header}
 
-      {!walletAddress ? (
-        <GlassCard>
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Settlements</div>
-            <div className="mt-3 text-xl font-semibold text-white">Connect a wallet to settle funds</div>
-            <div className="mt-3 text-sm text-white/60">
-              StackPay needs your connected merchant wallet to read processor balances and submit withdrawals.
-            </div>
-          </div>
-        </GlassCard>
-      ) : loading ? (
-        <GlassCard>
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Loading</div>
-            <div className="mt-3 text-xl font-semibold text-white">Loading settlement data</div>
-            <div className="mt-3 text-sm text-white/60">
-              Fetching your processor balances and settlement history.
-            </div>
-          </div>
-        </GlassCard>
-      ) : (
-        <>
-          <div className="grid gap-4 xl:grid-cols-3">
-            {currencies.map((item) => (
-              <GlassCard key={item}>
-                <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">{item} available</div>
-                <div className="mt-3 text-3xl font-semibold text-white">
-                  {formatCurrencyAmount(dashboard?.processorBalances?.[item] ?? 0, item)}
+      <section aria-labelledby="balances-title">
+        <h2 id="balances-title" className="sr-only">
+          Available balances
+        </h2>
+
+        {/* Mobile: one stacked list */}
+        <div className="card overflow-hidden sm:hidden">
+          <ul className="divide-y divide-line">
+            {assets.map(({ currency: item, mark, description }, index) => (
+              <li key={item} className="flex items-center gap-3 px-5 py-4">
+                <span className={`asset-mark asset-${index}`} aria-hidden="true">
+                  {mark}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-fg">{item}</div>
+                  <div className="text-sm text-muted">{description}</div>
                 </div>
-                <div className="mt-3 text-sm text-white/55">Live processor balance held for your merchant wallet.</div>
-              </GlassCard>
+                <div className="ml-auto text-right">
+                  <div className="text-lg font-semibold tabular-nums text-fg">
+                    {formatAmount(dashboard?.processorBalances?.[item] ?? 0, item)}
+                  </div>
+                  <div className="text-xs text-muted">available</div>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
+        </div>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-[2fr_1fr]">
-            <GlassCard className="border border-white/20">
-              <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Settle funds</div>
-              <div className="mt-2 text-xl font-semibold text-white">Withdraw to your destination wallet</div>
-
-              <div className="mt-5 grid gap-4">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-white/40">Asset</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {currencies.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setCurrency(item)}
-                        className={`rounded-full px-4 py-2 text-xs ${currency === item
-                            ? "border border-white/20 bg-white text-black"
-                            : "border border-white/10 bg-white/5 text-white/70"
-                          }`}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-white/40">Amount</div>
-                  <div className="mt-2 flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                    <input
-                      className="w-full bg-transparent text-sm text-white/80 outline-none"
-                      value={amount}
-                      onChange={(event) => setAmount(sanitizeDecimalInput(event.target.value))}
-                      placeholder="Amount to settle"
-                      inputMode="decimal"
-                    />
-                    <span className="text-xs text-white/55">{currency}</span>
-                  </div>
-                  <div className="mt-2 text-xs text-white/45">
-                    Available: {formatCurrencyAmount(availableBalance, currency)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-white/40">Destination wallet</div>
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none"
-                    value={destination}
-                    onChange={(event) => setDestination(event.target.value)}
-                    placeholder="Settlement wallet"
-                  />
-                </div>
-
-                <button
-                  onClick={() => void submitSettlement()}
-                  disabled={submitting}
-                  className="rounded-full border border-white/20 bg-white px-5 py-3 text-sm font-semibold text-black disabled:opacity-60"
-                >
-                  {submitting ? "Settling..." : "Settle funds"}
-                </button>
-
-                {successMessage ? <div className="text-sm text-emerald-300">{successMessage}</div> : null}
-                {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        {/* Tablet and up: three stat cards */}
+        <div className="hidden gap-4 sm:grid sm:grid-cols-3">
+          {assets.map(({ currency: item, mark, description }, index) => (
+            <div key={item} className="card p-5 sm:p-6">
+              <div className="flex items-center gap-3">
+                <span className={`asset-mark asset-${index}`} aria-hidden="true">
+                  {mark}
+                </span>
+                <span className="text-sm font-semibold text-fg">{item}</span>
+                <span className="ml-auto text-sm text-muted">{description}</span>
               </div>
-            </GlassCard>
-
-            <GlassCard>
-              <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Settlement destination</div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {dashboard?.merchant?.settlement_wallet
-                  ? truncateAddress(dashboard.merchant.settlement_wallet)
-                  : "Uses connected wallet"}
+              <div className="stat-value mt-5">
+                {formatAmount(dashboard?.processorBalances?.[item] ?? 0, item)}
+                <span className="ml-1.5 text-base font-medium tracking-normal text-muted">{item}</span>
               </div>
-              <div className="mt-3 text-sm text-white/60">
-                Update this in Profile if you want settlements to default to a different wallet.
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/35">Merchant</div>
-                <div className="mt-2 text-sm text-white/80">
-                  {dashboard?.merchant?.company_name || dashboard?.merchant?.display_name || "Merchant"}
-                </div>
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                Funds are currently held in the processor contract. This withdrawal moves the selected asset to your chosen settlement destination.
-              </div>
-            </GlassCard>
-          </div>
-
-          <GlassCard className="mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Settlement history</div>
-              <span className="text-xs text-white/40">{dashboard?.settlementRuns.length ?? 0} recent</span>
+              <div className="mt-1 text-sm text-muted">Available to withdraw</div>
             </div>
+          ))}
+        </div>
+      </section>
 
-            {dashboard?.settlementRuns.length ? (
-              <div className="space-y-3">
-                <div className="hidden rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[11px] uppercase tracking-[0.24em] text-white/35 md:grid md:grid-cols-[1.05fr_1.15fr_1fr_1fr_140px] md:items-center md:gap-4">
-                  <div>Amount</div>
-                  <div>Destination</div>
-                  <div>Executed</div>
-                  <div>Transaction</div>
-                  <div className="text-right">Status</div>
-                </div>
-                {dashboard.settlementRuns.map((run) => (
-                  <div
-                    key={run.id}
-                    className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 md:grid-cols-[1.05fr_1.15fr_1fr_1fr_140px] md:items-center"
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="card overflow-hidden" aria-labelledby="withdraw-title">
+          <div className="card-header">
+            <div>
+              <h2 id="withdraw-title" className="card-title">
+                Withdraw funds
+              </h2>
+              <p className="card-description">Send an available balance to a Stacks wallet.</p>
+            </div>
+          </div>
+
+          <form
+            className="space-y-5 p-5 sm:p-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitSettlement();
+            }}
+          >
+            <div>
+              <span className="label" id="withdraw-asset-label">
+                Asset
+              </span>
+              <div className="segmented" role="group" aria-labelledby="withdraw-asset-label">
+                {currencies.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    aria-pressed={currency === item}
+                    onClick={() => setCurrency(item)}
                   >
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Amount</div>
-                      <div className="mt-1 text-sm font-semibold text-white md:mt-0">
-                        {formatCurrencyAmount(Number(run.amount), run.currency)}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Destination</div>
-                      <div className="mt-1 text-sm text-white/55 md:mt-0">{truncateAddress(run.destination)}</div>
-                    </div>
-
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Executed</div>
-                      <div className="mt-1 text-sm text-white/55 md:mt-0">
-                        {formatDateTime(run.executed_at)}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/35 md:hidden">Transaction</div>
-                      <a
-                        href={getTxExplorerUrl(run.tx_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex text-sm text-white/70 underline decoration-white/15 underline-offset-4 transition hover:text-white md:mt-0"
-                      >
-                        {truncateAddress(with0x(run.tx_id))}
-                      </a>
-                    </div>
-
-                    <div className="flex justify-start md:justify-end">
-                      <StatusBadge label={run.status === "completed" ? "Completed" : run.status === "failed" ? "Failed" : "Pending"} />
-                    </div>
-                  </div>
+                    {item}
+                  </button>
                 ))}
               </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/55">
-                No settlement runs yet. Your first completed withdrawal will appear here.
+            </div>
+
+            <div>
+              <div className="flex items-baseline justify-between gap-3">
+                <label className="label" htmlFor="withdraw-amount">
+                  Amount
+                </label>
+                <span className="text-sm text-muted">
+                  <span className="tabular-nums">{formatCurrencyAmount(availableBalance, currency)}</span> available
+                </span>
               </div>
-            )}
-          </GlassCard>
-        </>
-      )}
+              <div className="relative">
+                <input
+                  id="withdraw-amount"
+                  className="field pr-32 tabular-nums"
+                  value={amount}
+                  onChange={(event) => setAmount(sanitizeDecimalInput(event.target.value))}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  aria-describedby="withdraw-amount-hint"
+                />
+                <div className="absolute inset-y-0 right-2 flex items-center gap-2">
+                  <span className="text-sm text-muted">{currency}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm !min-h-[32px] !px-2.5 text-accent-text"
+                    onClick={() => setAmount(String(availableBalance))}
+                    disabled={availableBalance <= 0}
+                  >
+                    Max
+                  </button>
+                </div>
+              </div>
+              <p className="hint" id="withdraw-amount-hint">
+                You can withdraw up to your available {currency} balance.
+              </p>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="withdraw-destination">
+                Destination wallet
+              </label>
+              <input
+                id="withdraw-destination"
+                className="field font-mono !text-sm"
+                value={destination}
+                onChange={(event) => setDestination(event.target.value)}
+                placeholder="SP… or ST… address"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="hint">Prefilled with your default destination. You can send to a different address.</p>
+            </div>
+
+            {submitting ? (
+              <div className="alert" role="status">
+                <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-muted" aria-hidden="true" />
+                <span>Confirm the withdrawal in your wallet. We’ll update your balance once it confirms on-chain.</span>
+              </div>
+            ) : null}
+            {successMessage ? (
+              <div className="alert alert-success" role="status">
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{successMessage}</span>
+              </div>
+            ) : null}
+            {error ? (
+              <div className="alert alert-danger" role="alert">
+                {error}
+              </div>
+            ) : null}
+
+            <div className="border-t border-line pt-5">
+              <button type="submit" disabled={submitting} className="btn btn-primary w-full sm:w-auto">
+                <ArrowDownToLine size={17} aria-hidden="true" />
+                {submitting ? "Withdrawing…" : "Withdraw funds"}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <aside className="card p-5 sm:p-6" aria-labelledby="destination-title">
+          <h2 id="destination-title" className="card-title">
+            Where your funds go
+          </h2>
+          <p className="mt-2 text-sm text-fg-2">
+            Customer payments are held in the StackPay processor contract for {merchantName}. A withdrawal moves the
+            selected asset from there to the destination wallet.
+          </p>
+
+          <dl className="well mt-5 divide-y divide-line text-sm">
+            <div className="px-4 py-3">
+              <dt className="text-muted">Default destination</dt>
+              <dd className={`mt-0.5 text-fg ${defaultWallet ? "font-mono" : ""}`} title={defaultWallet ?? walletAddress}>
+                {defaultWallet ? truncateAddress(defaultWallet) : "Your connected wallet"}
+              </dd>
+            </div>
+            <div className="px-4 py-3">
+              <dt className="text-muted">Merchant</dt>
+              <dd className="mt-0.5 text-fg">{merchantName}</dd>
+            </div>
+          </dl>
+
+          <p className="mt-5 text-sm text-muted">
+            Want withdrawals to default to a different wallet?{" "}
+            <Link href="/profile" className="link">
+              Update it in Profile
+            </Link>
+            .
+          </p>
+        </aside>
+      </div>
+
+      <section className="card mt-4 overflow-hidden" aria-labelledby="history-title">
+        <div className="card-header">
+          <div>
+            <h2 id="history-title" className="card-title">
+              Withdrawal history
+            </h2>
+            <p className="card-description">
+              {runs.length ? `${runs.length} recent ${runs.length === 1 ? "withdrawal" : "withdrawals"}` : "Your settlements, newest first."}
+            </p>
+          </div>
+        </div>
+
+        {runs.length ? (
+          <>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Amount</th>
+                    <th scope="col">Destination</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Transaction</th>
+                    <th scope="col" className="text-right">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id}>
+                      <td className="font-semibold tabular-nums text-fg">
+                        {formatCurrencyAmount(Number(run.amount), run.currency)}
+                      </td>
+                      <td className="font-mono text-sm text-fg-2" title={run.destination}>
+                        {truncateAddress(run.destination)}
+                      </td>
+                      <td className="text-sm text-fg-2">{formatDateTime(run.executed_at)}</td>
+                      <td>
+                        <a
+                          href={getTxExplorerUrl(run.tx_id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="link inline-flex items-center gap-1 font-mono text-sm"
+                        >
+                          {truncateAddress(with0x(run.tx_id))}
+                          <ArrowUpRight size={14} aria-hidden="true" />
+                          <span className="sr-only">(opens explorer)</span>
+                        </a>
+                      </td>
+                      <td className="text-right">
+                        <RunStatus status={run.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="divide-y divide-line lg:hidden">
+              {runs.map((run) => (
+                <li key={run.id} className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-semibold tabular-nums text-fg">
+                      {formatCurrencyAmount(Number(run.amount), run.currency)}
+                    </div>
+                    <RunStatus status={run.status} />
+                  </div>
+                  <div className="mt-1 text-sm text-muted">
+                    To <span className="font-mono">{truncateAddress(run.destination)}</span> ·{" "}
+                    {formatDateTime(run.executed_at)}
+                  </div>
+                  <a
+                    href={getTxExplorerUrl(run.tx_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="link mt-1 inline-flex min-h-[32px] items-center gap-1 font-mono text-sm"
+                  >
+                    {truncateAddress(with0x(run.tx_id))}
+                    <ArrowUpRight size={14} aria-hidden="true" />
+                    <span className="sr-only">(opens explorer)</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true">
+              <History size={22} />
+            </span>
+            <h3>No withdrawals yet</h3>
+            <p>Each withdrawal you make appears here with its amount, destination, and on-chain transaction.</p>
+          </div>
+        )}
+      </section>
     </div>
   );
+}
+
+function RunStatus({ status }: { status: "pending" | "completed" | "failed" }) {
+  if (status === "completed") {
+    return <span className="badge badge-success">Completed</span>;
+  }
+  if (status === "failed") {
+    return <span className="badge badge-danger">Failed</span>;
+  }
+  return <span className="badge badge-warning">Pending</span>;
 }
