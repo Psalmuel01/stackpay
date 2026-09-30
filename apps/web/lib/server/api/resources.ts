@@ -83,8 +83,8 @@ export async function createInvoice(context: ApiContext, body: z.infer<typeof cr
 export async function listInvoices(context: ApiContext, page: Page, request: Request) {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
-  if (status && !["draft", "pending", "paid", "expired", "canceled"].includes(status)) {
-    throw new V1Error(400, "invalid_request_error", "parameter_invalid", "status must be draft, pending, paid, expired, or canceled.", "status");
+  if (status && !["draft", "pending", "paid", "expired", "canceled", "refunded"].includes(status)) {
+    throw new V1Error(400, "invalid_request_error", "parameter_invalid", "status must be draft, pending, paid, expired, canceled, or refunded.", "status");
   }
   await callRpc("expire_due_invoices", { p_merchant_id: context.merchantId, p_onchain_invoice_id: null });
   const rows = (await selectRows("invoices", {

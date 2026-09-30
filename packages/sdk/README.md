@@ -27,6 +27,7 @@ const invoice = await stackpay.invoices.create({
   currency: "USDCx",       // "STX" | "sBTC" | "USDCx"
   description: "Order #382",
   metadata: { orderId: "382" },
+  success_url: "https://shop.example/orders/382", // optional: where checkout returns the payer
 });
 
 // Send the customer to the hosted checkout.
@@ -36,6 +37,13 @@ redirect(invoice.checkout_url);
 API invoices start as `draft`. At checkout the customer's wallet creates the invoice on-chain
 (status `pending`) and pays it (status `paid`). No merchant signature is needed per invoice; your
 merchant account needs Universal QR set up once in the console.
+
+After payment, checkout returns the payer to `success_url` with `stackpay_invoice=<id>` appended.
+Arriving there is **not** proof of payment: fulfil on the `invoice.paid` webhook or confirm with
+`stackpay.invoices.retrieve(id)`.
+
+Payment links created through the API keep their `metadata` (for example `{ sku: "TEE-BLK-M" }`)
+and copy it, together with `payment_link`, onto every invoice bought through the link.
 
 ## Webhooks
 
@@ -66,7 +74,9 @@ Deliveries are at-least-once: deduplicate on `event.id`. Failed deliveries retry
 
 Events: `invoice.created`, `invoice.pending`, `invoice.paid`, `invoice.payment_reverted`
 (the block containing the payment was reorganized away; do not treat the invoice as paid),
-`invoice.expired`, `invoice.canceled`, `settlement.confirmed`, and `stackpay.ping` (test).
+`invoice.expired`, `invoice.canceled`, `invoice.refunded` (a verified on-chain refund to the
+original payer; `data.object.refund` has the amount and transaction), `settlement.confirmed`,
+and `stackpay.ping` (test).
 
 ## Reliability built in
 
@@ -107,6 +117,7 @@ for await (const invoice of stackpay.invoices.listAll({ status: "paid" })) {
 | `invoices` | `create`, `retrieve`, `list`, `listAll`, `cancel` |
 | `paymentLinks` | `create` (draft; activate in the console), `retrieve`, `list`, `listAll` |
 | `receipts` | `retrieve`, `list`, `listAll` |
+| `refunds` | `retrieve`, `list`, `listAll` (read-only: the merchant signs refunds in the console) |
 | `settlements` | `retrieve`, `list`, `listAll` (read-only) |
 | `events` | `retrieve`, `list`, `listAll` |
 | `webhookEndpoints` | `create`, `retrieve`, `update`, `list`, `delete`, `rotateSecret`, `sendTestEvent` |

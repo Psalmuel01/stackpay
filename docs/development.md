@@ -30,23 +30,31 @@ Open `http://localhost:3000`. Use the same origin consistently for wallet sessio
 
 ```sh
 npx tsc -p apps/web/tsconfig.json --noEmit --incremental false
-npm run -w @stackpay/web test:security
+npm run test:web                    # vitest: routes, services, security
+npm test -w @stackpay/sdk           # SDK unit tests
+npm run test:contracts              # Clarinet simnet
+PG_BIN=/opt/homebrew/opt/postgresql@15/bin npm run test:db   # all migrations + supabase/tests/*.sql on a throwaway PostgreSQL 15
 npm run build
-npm run test:contracts
 ```
 
-Stop the development server before running a production build; both use the Next.js output directory.
+`test:db` needs a local PostgreSQL 15 (`brew install postgresql@15`; set `PG_BIN` to its `bin`). It creates a temporary cluster, stubs the Supabase roles, applies every migration in order, and runs each SQL suite in a rolled-back transaction, including real concurrent-session tests through `dblink`. CI runs the same four suites on every push.
+
+To run a second dev server or a build next to a running one, give it its own output directory: `NEXT_DIST_DIR=.next-build npm run build`.
+
+For local webhook testing against `http://localhost`, set `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS=true` (development only; production refuses to start with it). Background work (retries, webhook delivery, expiry) runs when you call the job runner: `curl -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" http://localhost:3000/api/internal/jobs`.
 
 For UI changes, review the homepage, docs, and merchant entry screen at desktop and narrow mobile widths. Check keyboard focus, navigation, documentation anchors, search with no results, and open menus. Authenticated payment flows also require real wallet testing on the configured network; a successful build does not verify extension behavior.
 
 ## Documentation ownership
 
-- `/docs`: merchant workflows, wallet authentication, core API routes, troubleshooting, and current limitations.
+- `/docs`: merchant workflows, refunds, the `/api/v1` reference, webhooks, troubleshooting, and current limitations.
+- `packages/sdk/README.md`: SDK usage.
+- `docs/operations.md`: deployment, jobs, monitoring, alerts, incidents.
 - `docs/security-milestone.md`: rollout requirements and unresolved production blockers.
 - API source in `apps/web/app/api`: authoritative request validation and response behavior.
 - Contract source in `packages/contracts/stackpay`: authoritative on-chain behavior.
 
-Keep claims aligned with implemented behavior. Label upcoming features explicitly. Do not publish SDK installation or API-key examples until that integration surface is supported.
+Keep claims aligned with implemented behavior. Label upcoming features explicitly. The SDK is not on npm yet: document installation from the repository until a release is approved.
 
 ### Wallet transaction IDs
 

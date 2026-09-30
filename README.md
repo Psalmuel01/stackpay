@@ -2,59 +2,66 @@
 
 StackPay is a Bitcoin-native payment gateway on Stacks for `sBTC`, `STX`, and `USDCx`. It combines on-chain invoices and payment routes with a merchant-facing Next.js console, Supabase-backed metadata, hosted checkout pages, receipts, and webhook-driven notifications.
 
-## StackPay v2 work
+## StackPay v2
 
-The direction is developer-first merchant infrastructure for Bitcoin-backed payments on Stacks. Versioned APIs, real API keys, durable merchant webhooks, reconciliation, and a production SDK are planned work, not current capabilities.
+Developer-first merchant infrastructure for Bitcoin-backed payments on Stacks. It is running on testnet. Mainnet requires the independent contract review in the [release gate](docs/stackpay-v2-implementation.md#release-gate).
 
-- [Architecture and security audit](docs/stackpay-v2-audit.md)
-- [Prioritized P0/P1/P2 issues](docs/stackpay-v2-issues.md)
-- [Milestones and dependencies](docs/stackpay-v2-implementation.md)
+- **Versioned API** (`/api/v1`):
+  - hashed, scoped, environment-bound secret keys;
+  - `Idempotency-Key` on writes;
+  - cursor pagination, exact decimal and base-unit amounts, and request ids on every error.
+- **Signed merchant webhooks:**
+  - HMAC-SHA256 with timestamp, and encrypted signing secrets;
+  - retries at 1m, 5m, 30m and 2h, then a dead-letter queue;
+  - replay, SSRF-safe delivery, and automatic endpoint disablement.
+- **Durable chain projection:** a Chainhook inbox with leases and retries, atomic payment projection, and deterministic reorg rollback and reapply. Every chain record is bound to its contract deployment.
+- **TypeScript SDK** in [`packages/sdk`](packages/sdk): typed client, automatic idempotency, safe retries, pagination and webhook verification. Not yet published to npm.
+- **Merchant operations:**
+  - reconciliation CSV (orders → invoices → payments → receipts → refunds);
+  - on-chain-verified full and partial refunds;
+  - Counter Mode for in-person sales;
+  - SKU metadata and return URLs on MultiPay links.
+- **Operations:**
+  - readiness and metrics endpoints with alerts;
+  - structured logs with redaction;
+  - a fail-closed production configuration check;
+  - CI across web, SDK, contracts and PostgreSQL.
 
-## Current MVP
-
-The current working MVP supports:
-
-- merchant profile setup tied to a Stacks wallet
-- standard invoices created on-chain, then stored in Supabase after confirmation
-- `MultiPay` payment links for reusable fixed-price or suggested-price checkout
-- a universal QR route that accepts `sBTC`, `STX`, and `USDCx`
-- hosted payment pages
-- processor-based payment confirmation
-- receipt PDF generation
-- Hiro Chainhook ingestion for `invoice-paid`
-- in-app notifications with toast + sound
-- dashboard metrics from real merchant invoice/link data
+Plans and status:
+- [Audit](docs/stackpay-v2-audit.md)
+- [Prioritized issues](docs/stackpay-v2-issues.md)
+- [Implementation plan](docs/stackpay-v2-implementation.md)
+- [Settlement ADR](docs/adr/0001-settlement-model.md)
 
 ## Start here
 
-- **Merchant guides:** open `/docs` in the running application. Topics have shareable section links and a topic filter.
-- **Security and rollout:** [deployment requirements and remaining blockers](docs/security-milestone.md).
+- **Merchants and developers:** open `/docs` in the running app. It covers merchant guides, the API reference and webhooks. The console's **Developer** page manages API keys and webhook endpoints.
+- **Operators:** the [operations runbook](docs/operations.md) covers configuration, first deployment, scheduled jobs, alerts and incidents.
+- **Pilots:** the [merchant pilot runbook](docs/pilot-runbook.md).
 - **Development:** [local setup and verification](docs/development.md).
 
-The current release is a testnet preview. Subscriptions, automated payouts, and a supported public SDK are not available. Payments accrue in the processor contract; merchants withdraw manually. Dashboard USD conversions use demo rates and are not accounting valuations.
+Payments accrue in the processor contract, and merchants withdraw manually. StackPay reports exact per-asset amounts and never shows fiat valuations. Subscriptions and automated payouts are not offered.
 
 ## Architecture
 
-StackPay currently uses:
-
-- `apps/web`: Next.js 14 app router app, route handlers, merchant console, hosted checkout
-- `Supabase`: off-chain source of truth for merchants, invoices, payment links, receipts, notifications, and activity
-- `packages/contracts/stackpay`: Clarity contracts and tests
-- `Stacks wallets`: merchant identity and contract signing
-
-The active backend runs in Next.js route handlers under [`apps/web/app/api`](apps/web/app/api).
+- `apps/web`: Next.js 15 (React 19) app router. It holds:
+  - the merchant console and hosted checkout;
+  - route handlers: `/api/v1` for integrations, and session routes for the console;
+  - the Chainhook receiver and the job runner.
+- `Supabase` (PostgreSQL via PostgREST, service role only): merchants, invoices, links, receipts, refunds, settlements, events, webhooks, API keys, idempotency and audit log. Financial state changes happen inside atomic SQL functions.
+- `packages/contracts/stackpay`: Clarity contracts (`arch`, `proc`, and the proposed `direct` processor) and tests.
+- `packages/sdk`: TypeScript SDK.
+- `Stacks wallets`: merchant identity (signed sign-in challenge) and transaction signing. StackPay never holds keys.
 
 ## Monorepo Structure
 
 - [`apps/web`](apps/web): web app, API routes, hosted payment surfaces
 - [`packages/contracts/stackpay`](packages/contracts/stackpay): Clarity contracts and tests
-- [`packages/domain`](packages/domain): shared business metadata
-- [`packages/integrations`](packages/integrations): integration/webhook manifests
-- [`packages/sdk`](packages/sdk): SDK scaffolding
-- [`packages/ui`](packages/ui): navigation metadata and shared UI config
+- [`packages/sdk`](packages/sdk): TypeScript SDK for `/api/v1`
 - [`packages/config`](packages/config): environment and network helpers
-- [`supabase`](supabase): Supabase config and migrations
-- [`docs`](docs): MVP notes, Chainhook config, integration docs
+- [`supabase`](supabase): migrations and SQL tests (`supabase/tests`)
+- [`scripts`](scripts): disposable-PostgreSQL test runner and the deployment evidence checker
+- [`docs`](docs): runbooks, ADRs, audit, plan, and the Chainhook definition
 
 ## Merchant Flows
 
@@ -115,23 +122,23 @@ Supabase stores:
 - receipts
 - activity events
 - notifications
-- chainhook delivery state
+- the chain event inbox, merchant events and webhook deliveries
+- refunds, API keys (hashes only), idempotency records and the audit log
+- the contract deployment registry: each chain record's deployment
 
-## Notification Pipeline
+## Payment pipeline
 
-Current payment notifications work like this:
+1. A Hiro Chainhook watches the `arch` and `proc` contracts and posts to [`/api/webhooks/chainhooks`](apps/web/app/api/webhooks/chainhooks/route.ts). The sample definition is [`docs/stackpay-chainhook-invoice-paid.json`](docs/stackpay-chainhook-invoice-paid.json).
+2. Events go into a durable inbox (`chain_event_inbox`) and are acknowledged. They are projected inline, and the job runner retries anything left over.
+3. Projection is one SQL transaction that writes:
+   - the invoice status change (a compare-and-set, so a stale event cannot overwrite a newer state);
+   - the receipt;
+   - activity, the in-app notification, and the merchant event.
 
-1. Hiro Chainhook watches the deployed StackPay `arch` contract.
-2. On `invoice-paid`, Hiro posts to [`/api/webhooks/chainhooks`](apps/web/app/api/webhooks/chainhooks/route.ts).
-3. StackPay confirms the invoice/receipt in Supabase.
-4. A notification row is inserted.
-5. The header bell and toast update from [`NotificationsButton.tsx`](apps/web/components/app/NotificationsButton.tsx).
+   A rollback orphans the receipt and emits `invoice.payment_reverted`.
+4. Merchant events fan out to webhook endpoints and are delivered by the job runner.
 
-The sample upload file is:
-
-- [`docs/stackpay-chainhook-invoice-paid.json`](docs/stackpay-chainhook-invoice-paid.json)
-
-Email notifications are not implemented yet. The current pipeline is in-app only.
+Checkout also verifies the payment transaction directly, so a payment is recorded even if the Chainhook is late.
 
 ## Receipts
 
@@ -160,10 +167,13 @@ Build the app:
 npm run build
 ```
 
-Run contract tests:
+Run the tests:
 
 ```bash
-npm run test:contracts
+npm run test:web        # web unit and route tests (vitest)
+npm run test:contracts  # Clarity contracts (Clarinet simnet)
+PG_BIN=/opt/homebrew/opt/postgresql@15/bin npm run test:db  # every migration + SQL suite on a disposable PostgreSQL 15
+npm test -w @stackpay/sdk
 ```
 
 ## Supabase Setup
@@ -209,68 +219,42 @@ Push migrations:
 npm run supabase:db:push
 ```
 
-If you switch from local to remote, make sure your remote DB actually has the current unique constraints used by `upsert`, especially on:
-
-- `merchant_profiles.wallet_address`
-- `merchant_wallets.wallet_address`
-- `invoices.onchain_invoice_id`
-- `notifications.source_key`
-- `chainhook_events.delivery_key`
+After pushing, activate the contract deployment and schedule the job runner. See the [operations runbook](docs/operations.md).
 
 ## Required Environment Variables
 
-See [`apps/web/.env.example`](apps/web/.env.example).
+See [`apps/web/.env.example`](apps/web/.env.example). The full list, with requirements, is in the [operations runbook](docs/operations.md#1-configuration). Production refuses to start without:
 
-Important values:
-
-- `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_STACKS_NETWORK`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID`
-- `NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID`
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+- `STACKPAY_APP_ORIGIN`
+- the architecture, processor and token contract ids
 - `STACKPAY_CHAINHOOK_SECRET`
-- `STACKPAY_STACKS_API_URL` (optional override)
+- `STACKPAY_JOB_SECRET` (or `CRON_SECRET`)
+- `STACKPAY_WEBHOOK_ENCRYPTION_KEY`
 
 ## Key Routes
 
-Merchant pages:
+Merchant console:
+- `/dashboard`, `/create-invoice`, `/invoices` (refunds, CSV export)
+- `/payment-links`, `/qr-link`, `/qr-link/counter`
+- `/settlements`, `/developer`, `/profile`
 
-- `/dashboard`
-- `/create-invoice`
-- `/invoices`
-- `/payment-links`
-- `/qr-link`
-- `/profile`
+Hosted checkout: `/pay/[invoiceId]`, `/pay/link/[slug]`.
 
-Hosted/public pages:
+Integration API (secret key):
+- `/api/v1/invoices`, `/api/v1/payment-links`, `/api/v1/receipts`, `/api/v1/refunds`, `/api/v1/settlements`, `/api/v1/events`
+- `/api/v1/webhook-endpoints`, `/api/v1/webhook-deliveries`, `/api/v1/reports/reconciliation`
 
-- `/pay/[invoiceId]`
-- `/pay/link/[slug]`
+The reference is in `/docs#api`.
 
-Core API routes:
-
-- `GET /api/merchant/profile`
-- `POST /api/merchant/profile`
-- `GET /api/invoices`
-- `POST /api/invoices`
-- `POST /api/invoices/confirm`
-- `GET /api/payment-links`
-- `POST /api/payment-links`
-- `POST /api/payment-links/[paymentLinkId]/chain`
-- `GET /api/payment-links/public/[slug]`
-- `POST /api/payment-links/public/[slug]/invoices`
-- `POST /api/payment-links/public/[slug]/invoices/confirm`
-- `GET /api/qr-link`
-- `POST /api/qr-link`
-- `GET /api/notifications`
-- `PATCH /api/notifications`
-- `POST /api/webhooks/chainhooks`
+Infrastructure:
+- `/api/webhooks/chainhooks` (Chainhook secret)
+- `/api/internal/jobs` and `/api/internal/metrics` (job secret)
+- `/api/health` and `/api/health/ready` (public)
 
 ## Notes
 
-- The hosted merchant “open” actions now open in a new tab where appropriate.
 - Recent dashboard activity is deduped server-side so a single invoice/link does not spam the feed.
 - Notification sound is browser-dependent. Browsers may require prior user interaction before audio can play.
 
@@ -279,6 +263,7 @@ Core API routes:
 - [`docs/stackpay-mvp-blueprint.md`](docs/stackpay-mvp-blueprint.md)
 - [`docs/stackpay-supabase-mvp.md`](docs/stackpay-supabase-mvp.md)
 - [`docs/stackpay-chainhook-invoice-paid.json`](docs/stackpay-chainhook-invoice-paid.json)
+- [`docs/operations.md`](docs/operations.md) · [`docs/pilot-runbook.md`](docs/pilot-runbook.md) · [`docs/stackpay-deployment-registry.md`](docs/stackpay-deployment-registry.md)
 
 
 ## Creating Invoices with StackPay
@@ -388,9 +373,9 @@ This SOP outlines the steps to create and manage invoices using the StackPay Bit
 ### Link to Loom
 
 <https://loom.com/share/b2135bb5820046e7a6fb9736c520580a>
-## Security hardening milestone
+## Security
 
-Merchant access now requires a signed wallet challenge and a server session. Transaction confirmations verify the intended on-chain operation before recording financial state. See [security rollout and remaining blockers](docs/security-milestone.md) before deploying: the wallet-session migration, HTTPS app origin, webhook secret, and token asset names are required. This milestone does not make the app mainnet-ready.
+Merchant access requires a signed wallet challenge and an audience-bound server session, which can be revoked on all devices. Every financial record is written only after the exact on-chain transaction has been verified. See [security rollout](docs/security-milestone.md) and the [audit](docs/stackpay-v2-audit.md). The contracts have not been independently audited, so this is not yet mainnet-ready.
 
 ## Reset testnet deployment
 
