@@ -394,7 +394,8 @@ export async function listInvoicesForWallet(walletAddress: string) {
   await expireDueInvoices({ merchantId: String(merchant.id) });
 
   return (await selectRows("invoices", {
-    select: "*",
+    // Exact decimal text alongside the numeric columns so refunds never round.
+    select: "*,amount_text:amount::text,refunded_text:refunded_amount::text",
     merchant_id: `eq.${merchant.id as string}`,
     order: "created_at.desc",
   })) as Row[];

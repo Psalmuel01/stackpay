@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, Download, FileText, Plus, Search, SearchX, Wallet } from "lucide-react";
+import { ArrowUpRight, Download, FileText, Plus, Search, SearchX, Undo2, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import StatusBadge from "@/components/app/StatusBadge";
+import RefundDialog from "@/components/app/RefundDialog";
+import { atomicToDecimal, decimalToAtomic } from "@/lib/amounts";
 import { formatCurrencyAmount, formatDateTime } from "@/lib/format";
 import { getConnectedWalletAddress } from "@/lib/stacks";
 
@@ -14,8 +16,10 @@ type RemoteInvoice = {
   /** Stable id (inv_…); the only id an API draft has until checkout. */
   public_id: string;
   onchain_invoice_id: string | null;
-  status: "draft" | "pending" | "paid" | "expired" | "canceled";
+  status: "draft" | "pending" | "paid" | "expired" | "canceled" | "refunded";
   amount: number;
+  amount_text?: string;
+  refunded_text?: string;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
   customer_name: string;
@@ -45,6 +49,8 @@ export default function InvoicesPage() {
   const [remoteInvoices, setRemoteInvoices] = useState<RemoteInvoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [refunding, setRefunding] = useState<{ id: string; currency: RemoteInvoice["currency"]; refundable: string } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setConnectedAddress(getConnectedWalletAddress());
@@ -98,7 +104,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [connectedAddress]);
+  }, [connectedAddress, reloadKey]);
 
   const invoices = useMemo(() => {
     return remoteInvoices
@@ -129,7 +135,8 @@ export default function InvoicesPage() {
   const statusCounts = useMemo(() => {
     const counts: Record<Filter, number> = { all: remoteInvoices.length, pending: 0, paid: 0, expired: 0 };
     for (const invoice of remoteInvoices) {
-      counts[getEffectiveStatus(invoice, nowMs) as Filter] += 1;
+      const status = getEffectiveStatus(invoice, nowMs);
+      if (status in counts) counts[status as Filter] += 1;
     }
     return counts;
   }, [nowMs, remoteInvoices]);
@@ -249,7 +256,8 @@ export default function InvoicesPage() {
                       <div className="text-sm text-muted">{timeline.label}</div>
                       <div className="text-fg-2 tabular-nums">{timeline.value}</div>
                     </td>
-                    <td className="text-right">
+                    <td className="whitespace-nowrap text-right">
+                      <RefundButton invoice={invoice} onRefund={setRefunding} />
                       <Link
                         href={`/pay/${invoice.onchain_invoice_id ?? invoice.public_id}`}
                         target="_blank"
@@ -293,15 +301,18 @@ export default function InvoicesPage() {
                       {invoice.effectiveStatus === "pending" ? `${timeline.label} ${timeline.value}` : timeline.value}
                     </span>
                   </div>
-                  <Link
-                    href={`/pay/${invoice.onchain_invoice_id ?? invoice.public_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open checkout for ${invoice.onchain_invoice_id ?? invoice.public_id} (opens in a new tab)`}
-                    className="btn btn-secondary btn-icon shrink-0"
-                  >
-                    <ArrowUpRight size={18} aria-hidden="true" />
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <RefundButton invoice={invoice} onRefund={setRefunding} compact />
+                    <Link
+                      href={`/pay/${invoice.onchain_invoice_id ?? invoice.public_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open checkout for ${invoice.onchain_invoice_id ?? invoice.public_id} (opens in a new tab)`}
+                      className="btn btn-secondary btn-icon shrink-0"
+                    >
+                      <ArrowUpRight size={18} aria-hidden="true" />
+                    </Link>
+                  </div>
                 </div>
               </li>
             );
@@ -368,6 +379,16 @@ export default function InvoicesPage() {
 
         {body}
       </section>
+
+      {refunding ? (
+        <RefundDialog
+          invoiceId={refunding.id}
+          currency={refunding.currency}
+          refundable={refunding.refundable}
+          onClose={() => setRefunding(null)}
+          onRefunded={() => setReloadKey((key) => key + 1)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -380,7 +401,45 @@ const filterOptions: Array<{ value: Filter; label: string }> = [
 ];
 
 function statusLabel(status: string) {
-  return ({ paid: "Paid", expired: "Expired", draft: "Draft", canceled: "Canceled" } as Record<string, string>)[status] ?? "Pending";
+  return ({ paid: "Paid", expired: "Expired", draft: "Draft", canceled: "Canceled", refunded: "Refunded" } as Record<string, string>)[status] ?? "Pending";
+}
+
+/** Exact amount still refundable, or null when nothing is (or the exact amounts are unavailable). */
+function refundableAmount(invoice: RemoteInvoice) {
+  if (invoice.status !== "paid" || !invoice.amount_text) return null;
+  try {
+    const remaining = decimalToAtomic(invoice.amount_text, invoice.currency) - decimalToAtomic(invoice.refunded_text ?? "0", invoice.currency);
+    return remaining > 0n ? atomicToDecimal(remaining, invoice.currency) : null;
+  } catch {
+    return null;
+  }
+}
+
+function RefundButton({
+  invoice,
+  onRefund,
+  compact = false,
+}: {
+  invoice: RemoteInvoice;
+  onRefund: (target: { id: string; currency: RemoteInvoice["currency"]; refundable: string }) => void;
+  compact?: boolean;
+}) {
+  const refundable = refundableAmount(invoice);
+  if (!refundable) return null;
+  const id = invoice.onchain_invoice_id ?? invoice.public_id;
+  const partial = Number(invoice.refunded_text ?? 0) > 0;
+  return (
+    <button
+      type="button"
+      onClick={() => onRefund({ id, currency: invoice.currency, refundable })}
+      className={compact ? "btn btn-secondary btn-icon shrink-0" : "btn btn-ghost btn-sm"}
+      aria-label={`Refund ${id}${partial ? " (partially refunded)" : ""}`}
+      title={partial ? `${refundable} ${invoice.currency} left to refund` : undefined}
+    >
+      <Undo2 size={compact ? 18 : 16} aria-hidden="true" />
+      {compact ? null : "Refund"}
+    </button>
+  );
 }
 
 function getTimeline(invoice: RemoteInvoice & { effectiveStatus: string }) {

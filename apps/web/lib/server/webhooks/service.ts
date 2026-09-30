@@ -15,6 +15,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "invoice.payment_reverted",
   "invoice.expired",
   "invoice.canceled",
+  "invoice.refunded",
   "settlement.confirmed",
 ] as const;
 

@@ -23,7 +23,7 @@ type RemoteInvoice = {
   public_id?: string;
   /** Null while an API invoice is still a draft (created on-chain at checkout). */
   onchain_invoice_id: string | null;
-  status: "draft" | "pending" | "paid" | "expired" | "canceled";
+  status: "draft" | "pending" | "paid" | "expired" | "canceled" | "refunded";
   amount: number;
   currency: "sBTC" | "STX" | "USDCx";
   description: string;
@@ -375,7 +375,9 @@ export default function HostedPaymentPage({
   }
 
   const amountLabel = formatCurrencyAmount(Number(invoice.amount), invoice.currency);
-  const statusLabel = effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : effectiveStatus === "canceled" ? "Canceled" : "Pending";
+  const refunded = effectiveStatus === "refunded";
+  const settled = effectiveStatus === "paid" || refunded;
+  const statusLabel = refunded ? "Refunded" : effectiveStatus === "paid" ? "Paid" : effectiveStatus === "expired" ? "Expired" : effectiveStatus === "canceled" ? "Canceled" : "Pending";
   const isDraft = !invoice.onchain_invoice_id;
 
   return (
@@ -384,7 +386,7 @@ export default function HostedPaymentPage({
         <div className="p-5 pb-6 sm:p-6 sm:pb-7">
           <div className="flex items-center justify-between gap-3">
             <h2 id="checkout-amount" className="text-sm font-medium text-muted">
-              {effectiveStatus === "paid" ? "Amount paid" : "Amount due"}
+              {settled ? "Amount paid" : "Amount due"}
             </h2>
             <StatusBadge label={statusLabel} />
           </div>
@@ -408,7 +410,7 @@ export default function HostedPaymentPage({
             <DetailRow term="Invoice">
               <CopyValue value={invoice.onchain_invoice_id ?? invoice.public_id ?? ""} label="Invoice ID" />
             </DetailRow>
-            {effectiveStatus === "paid" ? (
+            {settled ? (
               <DetailRow term="Paid">
                 <span className="tabular-nums">
                   {formatDateTime(invoice.paid_at ?? invoice.receipt?.paid_at ?? null)}
@@ -430,16 +432,18 @@ export default function HostedPaymentPage({
         </div>
 
         <div className="space-y-4 border-t border-line bg-subtle/60 p-5 sm:p-6">
-          {effectiveStatus === "paid" ? (
+          {settled ? (
             <div role="status" className="flex flex-col items-center py-2 text-center">
               <span className="grid h-14 w-14 place-items-center rounded-full bg-success/10 text-success" aria-hidden="true">
                 <CircleCheck size={28} />
               </span>
               <p className="mt-4 text-xl font-semibold text-fg">
-                {justPaid ? "Payment complete" : "This invoice has been paid"}
+                {refunded ? "This payment was refunded" : justPaid ? "Payment complete" : "This invoice has been paid"}
               </p>
               <p className="mt-1.5 max-w-sm text-sm text-muted">
-                {justPaid
+                {refunded
+                  ? `${merchantName} returned ${amountLabel} to the wallet that paid. There’s nothing left to pay.`
+                  : justPaid
                   ? `${amountLabel} was sent to ${merchantName} and confirmed on Stacks.`
                   : `${merchantName} has received this payment. There’s nothing left to pay.`}
               </p>

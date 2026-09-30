@@ -14,7 +14,7 @@ export const RECONCILIATION_COLUMNS = [
   "invoice_id", "invoice_status", "created_at", "expires_at", "paid_at", "amount", "amount_units", "currency",
   "description", "customer_name", "customer_email", "onchain_invoice_id", "creation_tx_id",
   "receipt_id", "onchain_receipt_id", "payment_tx_id", "payer", "block_height", "receipt_status", "receipt_pdf_url",
-  "creation_source", "metadata_json",
+  "amount_refunded", "creation_source", "metadata_json",
 ] as const;
 
 /** RFC 4180 quoting plus protection against spreadsheet formula injection. */
@@ -49,7 +49,7 @@ export function validateFilters(filters: ReconciliationFilters) {
   for (const key of ["from", "to"] as const) {
     if (filters[key] && !Number.isFinite(Date.parse(filters[key]!))) return `${key} must be an ISO date.`;
   }
-  if (filters.status && !["draft", "pending", "paid", "expired", "canceled"].includes(filters.status)) return "status is invalid.";
+  if (filters.status && !["draft", "pending", "paid", "expired", "canceled", "refunded"].includes(filters.status)) return "status is invalid.";
   return null;
 }
 
@@ -63,7 +63,7 @@ export function reconciliationCsvStream(merchantId: string, origin: string, filt
         controller.enqueue(encoder.encode(`${header.map(csvCell).join(",")}\r\n`));
         let cursor: { createdAt: string; id: string } | null = null;
         for (;;) {
-          const query: Record<string, string | number> = { ...filterQuery(merchantId, filters), select: "*,amount_text:amount::text", order: "created_at.desc,id.desc", limit: PAGE };
+          const query: Record<string, string | number> = { ...filterQuery(merchantId, filters), select: "*,amount_text:amount::text,refunded_text:refunded_amount::text", order: "created_at.desc,id.desc", limit: PAGE };
           if (cursor) query.or = `(created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id}))`;
           const invoices = (await selectRows("invoices", query)) as Row[];
           if (!invoices.length) break;
@@ -82,6 +82,7 @@ export function reconciliationCsvStream(merchantId: string, origin: string, filt
               invoice.description, invoice.customer_name, invoice.customer_email, invoice.onchain_invoice_id, invoice.tx_id,
               receipt?.public_id, receipt?.onchain_receipt_id, receipt?.tx_id, receipt?.payer_wallet_address, receipt?.block_height, receipt?.status,
               receipt?.onchain_receipt_id ? `${origin}/api/receipts/${receipt.onchain_receipt_id}/pdf` : "",
+              exact(invoice.refunded_text ?? invoice.refunded_amount ?? "0", invoice.currency as PaymentCurrency).amount,
               invoice.creation_source, metadata,
               ...metadataKeys.map((key) => metadata[key]),
             ];

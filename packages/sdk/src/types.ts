@@ -17,7 +17,7 @@ export interface ListParams {
   starting_after?: string;
 }
 
-export type InvoiceStatus = "draft" | "pending" | "paid" | "expired" | "canceled";
+export type InvoiceStatus = "draft" | "pending" | "paid" | "expired" | "canceled" | "refunded";
 
 export interface InvoicePayment {
   receipt_id: string;
@@ -38,6 +38,8 @@ export interface Invoice {
   amount: string;
   amount_units: string;
   currency: Currency;
+  /** Total refunded on-chain so far; equals `amount` when status is `refunded`. */
+  amount_refunded: string;
   description: string;
   metadata: Metadata;
   customer: { name: string; email: string };
@@ -143,6 +145,7 @@ export type EventType =
   | "invoice.payment_reverted"
   | "invoice.expired"
   | "invoice.canceled"
+  | "invoice.refunded"
   | "settlement.confirmed"
   | "stackpay.ping";
 

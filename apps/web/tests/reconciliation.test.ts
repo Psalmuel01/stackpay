@@ -68,7 +68,7 @@ describe("reconciliation export", () => {
 
   it("validates filters", () => {
     expect(validateFilters({ from: "yesterday" })).toMatch(/from/);
-    expect(validateFilters({ status: "refunded" })).toMatch(/status/);
+    expect(validateFilters({ status: "settled" })).toMatch(/status/);
     expect(validateFilters({ from: "2026-10-01", to: "2026-11-01", status: "paid" })).toBeNull();
   });
 

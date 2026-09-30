@@ -9,7 +9,7 @@ import type { ApiEnvironment } from "./v1";
 type Row = Record<string, any>;
 
 /** Column list for PostgREST that returns numeric amounts as text (no floating point). */
-export const INVOICE_COLUMNS = "*,amount_text:amount::text";
+export const INVOICE_COLUMNS = "*,amount_text:amount::text,refunded_text:refunded_amount::text";
 export const RECEIPT_COLUMNS = "*,amount_text:amount::text";
 export const SETTLEMENT_COLUMNS = "*,amount_text:amount::text";
 export const PAYMENT_LINK_COLUMNS = "*,default_amount_text:default_amount::text";
@@ -43,6 +43,7 @@ export function serializeInvoice(row: Row, context: { origin: string; environmen
     status: row.status,
     ...money(row.amount_text ?? row.amount, currency),
     currency,
+    amount_refunded: canonicalAmount(row.refunded_text ?? row.refunded_amount ?? "0", currency),
     description: row.description ?? "",
     metadata: row.metadata ?? {},
     customer: { name: row.customer_name ?? "", email: row.customer_email ?? "" },

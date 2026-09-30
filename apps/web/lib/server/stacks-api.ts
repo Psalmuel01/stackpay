@@ -205,6 +205,14 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
 }
 
 export async function syncTransaction(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
+  return syncVerifiedTransaction(txId, (payload, id) => verifyTransactionPayload(payload, id, expected));
+}
+
+/** Fetches a transaction and, once it is anchored and successful, runs the supplied verifier on it. */
+export async function syncVerifiedTransaction(
+  txId: string,
+  verify: (payload: any, txId: string) => { onchainId: string | null; senderAddress: string }
+): Promise<TxSyncResult> {
   const normalizedTxId = normalizeTransactionId(txId);
   if (!normalizedTxId) throw new ApiError(400, "invalid_tx_id", "A valid transaction id is required.");
   txId = normalizedTxId;
@@ -231,7 +239,7 @@ export async function syncTransaction(txId: string, expected: ExpectedTransactio
     return {
       status: "success",
       resultRepr,
-      ...verifyTransactionPayload(payload, txId, expected),
+      ...verify(payload, txId),
       txId,
       confirmedAt,
       blockHash: typeof payload.block_hash === "string" ? payload.block_hash : null,
