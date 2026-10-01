@@ -9,12 +9,12 @@ In production the server **refuses to start** if any of these is missing or inco
 | Variable | Requirement |
 | --- | --- |
 | `NEXT_PUBLIC_STACKS_NETWORK` | `testnet` or `mainnet` |
-| `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) | The project the migrations were applied to |
-| `STACKPAY_APP_ORIGIN` (or `NEXT_PUBLIC_APP_URL`) | The exact public `https://` origin. Wallet sign-in is bound to it. |
+| `NEXT_PUBLIC_SUPABASE_URL` (or the server-only `SUPABASE_URL`) and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) | The project the migrations were applied to |
+| `NEXT_PUBLIC_APP_URL` | The exact public `https://` origin, with no trailing slash. Wallet sign-in is bound to it. `STACKPAY_APP_ORIGIN` overrides it on the server and is rarely needed. |
 | `NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID`, `NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID` | The deployed pair on this network. It must also be the **active** registered deployment (§2.3). |
 | `NEXT_PUBLIC_STACKPAY_SBTC_CONTRACT_ID`, `NEXT_PUBLIC_STACKPAY_USDCX_CONTRACT_ID` and the matching `*_ASSET_NAME` | Token contracts for this network |
 | `STACKPAY_CHAINHOOK_SECRET` | At least 32 characters; the same value is configured on the Chainhook |
-| `STACKPAY_JOB_SECRET` (or `CRON_SECRET` on Vercel) | At least 32 characters; authorizes the job runner and the metrics endpoint |
+| `STACKPAY_JOB_SECRET` (or `CRON_SECRET`) | At least 32 characters (`openssl rand -hex 32`); authorizes the job runner and the metrics endpoint. The scheduler must send the same value (§3). |
 | `STACKPAY_WEBHOOK_ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). It encrypts merchant webhook signing secrets. If you lose it, every endpoint must rotate its secret. |
 | `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS` | Must be unset in production (it is for local development only) |
 
@@ -50,19 +50,66 @@ Optional alert tuning, in minutes:
 
 ## 3. Scheduled jobs
 
-`/api/internal/jobs` does five things:
+`/api/internal/jobs` does six things:
 - retries chain events that failed to project;
-- delivers due merchant webhooks;
-- expires invoices;
-- purges expired sessions, challenges and idempotency keys;
+- delivers due merchant webhooks, including retries;
+- expires past-due invoices nobody has opened (reads also expire them) and emits `invoice.expired`;
+- purges expired sessions, challenges and rate-limit rows;
+- purges idempotency keys older than 24 hours;
 - records a heartbeat.
 
-Call it **every minute**. It is safe to call concurrently or late, because work is leased.
+Call it **every minute**. It is safe to call concurrently or late, because work is leased. The secret is `STACKPAY_JOB_SECRET` (generate one with `openssl rand -hex 32`); the runner also accepts `CRON_SECRET`.
 
+### Option A: Supabase (`pg_cron` + `pg_net`)
+
+This needs no paid hosting plan. Run it once in the Supabase SQL editor of the project the app uses. Keep it out of migrations, because the URL and secret differ per environment.
+
+1. Enable the extensions (Dashboard → Database → Extensions, or):
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net;
+   ```
+2. Store the job secret in Vault, using the same value as `STACKPAY_JOB_SECRET` in the app's environment:
+   ```sql
+   select vault.create_secret('<STACKPAY_JOB_SECRET>', 'stackpay_job_secret');
+   ```
+   To change it later: `select vault.update_secret((select id from vault.secrets where name = 'stackpay_job_secret'), '<new secret>');`
+3. Schedule the call:
+   ```sql
+   select cron.schedule(
+     'stackpay-jobs',
+     '* * * * *',
+     $$
+     select net.http_post(
+       url := 'https://<origin>/api/internal/jobs',
+       headers := jsonb_build_object(
+         'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'stackpay_job_secret'),
+         'Content-Type', 'application/json'
+       ),
+       body := '{}'::jsonb,
+       timeout_milliseconds := 30000
+     );
+     $$
+   );
+   ```
+4. Verify after a few minutes:
+   ```sql
+   select status_code, created from net._http_response order by created desc limit 5;
+   ```
+   - `200` means it works.
+   - `401` means the Vault secret does not match the app's `STACKPAY_JOB_SECRET`.
+   - A `jobs_not_running` alert in `/api/internal/metrics` should clear.
+
+To stop it: `select cron.unschedule('stackpay-jobs');`. The scheduler can only reach a public URL, not `localhost`.
+
+### Option B: other schedulers
 - **Vercel Pro:** add a cron for `/api/internal/jobs` with schedule `* * * * *`. Vercel sends `CRON_SECRET` automatically. (Hobby plans allow only daily crons, which is not enough.)
-- **Any other scheduler** (an external cron service, a GitHub Actions schedule, a `pg_cron` + `pg_net` job): `curl -fsS -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" https://<origin>/api/internal/jobs`.
+- **Anything else** (an external cron service, a GitHub Actions schedule): `curl -fsS -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" https://<origin>/api/internal/jobs`.
 
-If jobs stop, payments are still recorded, because the Chainhook receiver processes inline. However, retries, webhooks and expiry stall, and the `jobs_not_running` alert fires after 10 minutes.
+If jobs stop, payments are still recorded, because the Chainhook receiver and checkout process them inline. However:
+- retries and webhook delivery stall;
+- unread invoices are not expired;
+- the `jobs_not_running` alert fires after 10 minutes.
 
 ## 4. Monitoring
 

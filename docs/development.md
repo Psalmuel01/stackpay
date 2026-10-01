@@ -24,7 +24,7 @@ Choose one database:
 npm run dev
 ```
 
-Open `http://localhost:3000`. Use the same origin consistently for wallet sessions. Production requires an exact HTTPS `STACKPAY_APP_ORIGIN`; see the security rollout guide for the full checklist.
+Open `http://localhost:3000`. Use the same origin consistently for wallet sessions. Production requires `NEXT_PUBLIC_APP_URL` (or the server-only `STACKPAY_APP_ORIGIN`) to be the exact HTTPS origin; see the security rollout guide for the full checklist.
 
 ## Verification
 

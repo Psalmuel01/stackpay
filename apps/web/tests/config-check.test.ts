@@ -20,6 +20,12 @@ describe("production configuration", () => {
     expect(checkConfiguration(valid)).toEqual([]);
   });
 
+  it("accepts the public Supabase URL and app URL when the server-only overrides are unset", () => {
+    const { SUPABASE_URL: _url, STACKPAY_APP_ORIGIN: _origin, ...rest } = valid;
+    expect(checkConfiguration({ ...rest, NEXT_PUBLIC_SUPABASE_URL: "https://db.example.supabase.co", NEXT_PUBLIC_APP_URL: "https://pay.example.com" })).toEqual([]);
+    expect(checkConfiguration(rest).map((p) => p.key)).toEqual(expect.arrayContaining(["SUPABASE_URL", "STACKPAY_APP_ORIGIN"]));
+  });
+
   it("rejects testnet contracts on a mainnet deployment", () => {
     const problems = checkConfiguration({ ...valid, NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID: "ST000000000000000000002AMW42H.processor" });
     expect(problems).toEqual([{ key: "NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID", problem: "belongs to a different network than mainnet" }]);

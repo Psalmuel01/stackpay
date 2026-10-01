@@ -801,7 +801,7 @@ redirect(invoice.checkout_url);`} />
                   ],
                   [
                     "Sign-in fails only on the deployed site",
-                    "Verify that STACKPAY_APP_ORIGIN matches the exact HTTPS origin, and that the server database URL and key belong to the same project. Check the server error code without logging credentials or signed challenge contents.",
+                    "Verify that NEXT_PUBLIC_APP_URL (or STACKPAY_APP_ORIGIN, if set) matches the exact HTTPS origin, and that the server database URL and key belong to the same project. Check the server error code without logging credentials or signed challenge contents.",
                   ],
                   [
                     "Payment is pending or missing from the dashboard",

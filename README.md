@@ -226,8 +226,8 @@ After pushing, activate the contract deployment and schedule the job runner. See
 See [`apps/web/.env.example`](apps/web/.env.example). The full list, with requirements, is in the [operations runbook](docs/operations.md#1-configuration). Production refuses to start without:
 
 - `NEXT_PUBLIC_STACKS_NETWORK`
-- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-- `STACKPAY_APP_ORIGIN`
+- `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL`) and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`)
+- `NEXT_PUBLIC_APP_URL` (the exact https origin; `STACKPAY_APP_ORIGIN` can override it on the server)
 - the architecture, processor and token contract ids
 - `STACKPAY_CHAINHOOK_SECRET`
 - `STACKPAY_JOB_SECRET` (or `CRON_SECRET`)

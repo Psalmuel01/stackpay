@@ -25,7 +25,8 @@ export function checkConfiguration(env: Record<string, string | undefined> = pro
   const network = env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
   if (!["mainnet", "testnet"].includes(network)) problems.push({ key: "NEXT_PUBLIC_STACKS_NETWORK", problem: "must be mainnet or testnet" });
 
-  need("SUPABASE_URL");
+  // Mirrors supabase-admin: the server-only URL wins, the public one is the fallback.
+  if (!env.SUPABASE_URL?.trim() && !env.NEXT_PUBLIC_SUPABASE_URL?.trim()) problems.push({ key: "SUPABASE_URL", problem: "is required (or NEXT_PUBLIC_SUPABASE_URL)" });
   if (!env.SUPABASE_SERVICE_ROLE_KEY?.trim() && !env.SUPABASE_SECRET_KEY?.trim()) problems.push({ key: "SUPABASE_SERVICE_ROLE_KEY", problem: "is required (or SUPABASE_SECRET_KEY)" });
 
   const origin = env.STACKPAY_APP_ORIGIN ?? env.NEXT_PUBLIC_APP_URL;
