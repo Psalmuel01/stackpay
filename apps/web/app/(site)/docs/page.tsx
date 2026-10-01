@@ -646,12 +646,12 @@ export default function DocsPage() {
               </div>
               <h3 className="pt-2 text-lg font-semibold text-fg">TypeScript SDK</h3>
               <p>
-                <Code>@stackpay/sdk</Code> wraps the API with types, automatic
+                <Code>stackpay</Code> wraps the API with types, automatic
                 idempotency keys, safe retries, pagination helpers, and webhook
-                verification. It isn’t on npm yet; install it from the
-                repository’s <Code>packages/sdk</Code>.
+                verification. Install it with <Code>npm install stackpay</Code>;
+                it needs Node.js 18.17 or later and is ES modules only.
               </p>
-              <CodeBlock lang="ts" title="server.ts" code={`import { StackPay } from "@stackpay/sdk";
+              <CodeBlock lang="ts" title="server.ts" code={`import { StackPay } from "stackpay";
 
 const stackpay = new StackPay({ secretKey: process.env.STACKPAY_SECRET_KEY!, baseUrl: "https://<your-stackpay-origin>" });
 const invoice = await stackpay.invoices.create({ amount: "25", currency: "USDCx", metadata: { order_id: "382" } });
@@ -767,9 +767,8 @@ redirect(invoice.checkout_url);`} />
                   invoices or payments.
                 </li>
                 <li>
-                  The contracts have not had an independent audit. The SDK is
-                  not yet on npm. Subscriptions and automated settlement are
-                  not offered.
+                  The contracts have not had an independent audit. Subscriptions
+                  and automated settlement are not offered.
                 </li>
                 <li>
                   Token availability and asset identifiers depend on the

@@ -59,7 +59,7 @@
 - Shared packages:
   - `@stackpay/domain`: product truth shared by web, API, SDK.
   - `@stackpay/integrations`: REST and webhook contract surface.
-  - `@stackpay/sdk`: client entry point for app integrations.
+  - `stackpay` (npm): client entry point for app integrations.
   - `@stackpay/config`: API and network defaults.
   - `@stackpay/ui`: shared navigation and surface metadata.
 - Next backend steps:

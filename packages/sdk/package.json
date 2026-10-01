@@ -1,7 +1,18 @@
 {
-  "name": "@stackpay/sdk",
+  "name": "stackpay",
   "version": "0.1.0",
   "description": "Official TypeScript client for the StackPay API: invoices, payment links, receipts, settlements, events, and signed webhooks on Stacks.",
+  "license": "MIT",
+  "author": "Samuel Dahunsi",
+  "homepage": "https://github.com/Psalmuel01/stackpay/tree/main/packages/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Psalmuel01/stackpay.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/Psalmuel01/stackpay/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,10 +22,28 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false,
-  "engines": { "node": ">=18.17" },
-  "keywords": ["stackpay", "stacks", "sbtc", "bitcoin", "payments", "webhooks"],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "stackpay",
+    "stacks",
+    "sbtc",
+    "bitcoin",
+    "usdcx",
+    "stx",
+    "payments",
+    "checkout",
+    "invoices",
+    "webhooks",
+    "sdk"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
@@ -24,5 +53,8 @@
   "devDependencies": {
     "typescript": "^5.5.4",
     "vitest": "^4.0.7"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

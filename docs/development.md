@@ -31,7 +31,7 @@ Open `http://localhost:3000`. Use the same origin consistently for wallet sessio
 ```sh
 npx tsc -p apps/web/tsconfig.json --noEmit --incremental false
 npm run test:web                    # vitest: routes, services, security
-npm test -w @stackpay/sdk           # SDK unit tests
+npm test -w stackpay                # SDK unit tests
 npm run test:contracts              # Clarinet simnet
 PG_BIN=/opt/homebrew/opt/postgresql@15/bin npm run test:db   # all migrations + supabase/tests/*.sql on a throwaway PostgreSQL 15
 npm run build
@@ -67,7 +67,7 @@ For UI changes, review the homepage, docs, and merchant entry screen at desktop 
 - API source in `apps/web/app/api`: authoritative request validation and response behavior.
 - Contract source in `packages/contracts/stackpay`: authoritative on-chain behavior.
 
-Keep claims aligned with implemented behavior. Label upcoming features explicitly. The SDK is not on npm yet: document installation from the repository until a release is approved.
+Keep claims aligned with implemented behavior. Label upcoming features explicitly. The SDK is published to npm as `stackpay`. Releases are described in `packages/sdk/README.md` § Releasing.
 
 ### Wallet transaction IDs
 

@@ -50,7 +50,7 @@ GitHub-style backlog, stored locally; no GitHub issues created. Every checkbox i
 
 - [x] **P1-01: Real TypeScript SDK.** Problem: private scaffold calls mock port 4000 with unknown result types. Impact: broken developer promise. Fix: typed v1 client, errors/request IDs, pagination, safe retries/idempotency, webhook helpers, examples, release packaging. Files: `packages/sdk/**`, docs, integration tests. Tests: actual v1 integration, timeout/cancellation, retry safety, error decoding, package import/types. Publish only after explicit release approval.
 
-  **Status (2026-09-30):** Done: typed client, errors, pagination, automatic idempotency, retries, timeouts and webhook helpers; tests include integration against the real route handlers. Publishing to npm needs a license and release approval.
+  **Status (2026-09-30):** Done: typed client, errors, pagination, automatic idempotency, retries, timeouts and webhook helpers; tests include integration against the real route handlers. Released on npm as `stackpay` under the MIT license.
 
 - [x] **P1-02: Reconciliation metadata and CSV.** Problem: no complete order→payment→receipt→settlement export. Impact: bookkeeping/support friction. Fix: bounded metadata, correlation IDs and exact units, cursor-based CSV, formula escaping, correction status. Files: schema, v1 invoice/payment/receipt services, export route/UI. Tests: merchant isolation, atomic precision, large exports, spreadsheet formula injection, historical deployment, refunded/orphaned status when implemented.
 

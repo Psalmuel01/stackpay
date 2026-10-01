@@ -84,7 +84,7 @@ Milestones 0–7 are implemented on `v2/core-infrastructure`. Item-by-item statu
 | 3 — API contract and signing ADR | Done: `/api/v1`; [ADR 0001](adr/0001-settlement-model.md); draft invoices created on-chain by the customer through the merchant's Universal link. |
 | 4 — Keys, idempotency, state machine | Done. The `refunded` state exists because refunds are real on-chain transfers (P2-03). |
 | 5 — Merchant webhooks | Done. |
-| 6 — SDK and developer docs | Done: `packages/sdk`, `/docs#api` and `/docs#webhooks`. Not published to npm (needs a license and release approval). |
+| 6 — SDK and developer docs | Done: `packages/sdk`, `/docs#api` and `/docs#webhooks`. Released on npm as `stackpay` (MIT). |
 | 7 — Reconciliation and operations | Done: CSV export, metrics, alerts, the [operations runbook](operations.md). A backup restore drill is for the operator. |
 | 8 — Contract decision and pilots | ADR done and `direct` prototyped. The [pilot runbook](pilot-runbook.md) is prepared. Needs people: an independent contract review, deploying `direct`, and 3–5 merchant pilots. |
 

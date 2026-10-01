@@ -14,7 +14,7 @@
       "@stackpay/config": [
         "../../packages/config/src"
       ],
-      "@stackpay/sdk": [
+      "stackpay": [
         "../../packages/sdk/src"
       ]
     },

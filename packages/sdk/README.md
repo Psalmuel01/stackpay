@@ -1,10 +1,13 @@
-# @stackpay/sdk
+# stackpay
 
 Typed Node.js client for the StackPay API: accept sBTC, STX, and USDCx on Stacks through
 invoices with hosted checkout, payment links, receipts, settlements, events, and signed webhooks.
 
-> **Release status:** not yet published to npm. Until it is, install from the repository
-> (`npm install ../path/to/stackpay/packages/sdk`) or a git URL.
+```bash
+npm install stackpay
+```
+
+ES modules only: use `import`, not `require`. TypeScript types are included.
 
 ## Requirements
 
@@ -15,7 +18,7 @@ invoices with hosted checkout, payment links, receipts, settlements, events, and
 ## Quick start
 
 ```ts
-import { StackPay } from "@stackpay/sdk";
+import { StackPay } from "stackpay";
 
 const stackpay = new StackPay({
   secretKey: process.env.STACKPAY_SECRET_KEY!,
@@ -122,3 +125,15 @@ for await (const invoice of stackpay.invoices.listAll({ status: "paid" })) {
 | `events` | `retrieve`, `list`, `listAll` |
 | `webhookEndpoints` | `create`, `retrieve`, `update`, `list`, `delete`, `rotateSecret`, `sendTestEvent` |
 | `webhookDeliveries` | `retrieve`, `list`, `replay` |
+
+## Releasing (maintainers)
+
+1. Bump `version` in `package.json` and `VERSION` in `src/client.ts` together, following semver
+   (pre-1.0: a minor bump for breaking changes, a patch bump for fixes).
+2. From `packages/sdk`: `npm publish`. `prepublishOnly` typechecks, tests and builds first,
+   so a broken build cannot be published.
+3. Tag the commit `sdk-vX.Y.Z`.
+
+## License
+
+MIT

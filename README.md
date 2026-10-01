@@ -15,7 +15,7 @@ Developer-first merchant infrastructure for Bitcoin-backed payments on Stacks. I
   - retries at 1m, 5m, 30m and 2h, then a dead-letter queue;
   - replay, SSRF-safe delivery, and automatic endpoint disablement.
 - **Durable chain projection:** a Chainhook inbox with leases and retries, atomic payment projection, and deterministic reorg rollback and reapply. Every chain record is bound to its contract deployment.
-- **TypeScript SDK** in [`packages/sdk`](packages/sdk): typed client, automatic idempotency, safe retries, pagination and webhook verification. Not yet published to npm.
+- **TypeScript SDK** ([`stackpay` on npm](https://www.npmjs.com/package/stackpay), source in [`packages/sdk`](packages/sdk)): typed client, automatic idempotency, safe retries, pagination and webhook verification. MIT licensed.
 - **Merchant operations:**
   - reconciliation CSV (orders → invoices → payments → receipts → refunds);
   - on-chain-verified full and partial refunds;
@@ -173,7 +173,7 @@ Run the tests:
 npm run test:web        # web unit and route tests (vitest)
 npm run test:contracts  # Clarity contracts (Clarinet simnet)
 PG_BIN=/opt/homebrew/opt/postgresql@15/bin npm run test:db  # every migration + SQL suite on a disposable PostgreSQL 15
-npm test -w @stackpay/sdk
+npm test -w stackpay
 ```
 
 ## Supabase Setup

@@ -387,7 +387,7 @@ function Webhooks() {
 function QuickStart() {
   const environment = process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "live" : "test";
   const origin = typeof window === "undefined" ? "https://your-stackpay-origin" : window.location.origin;
-  const node = `import { StackPay } from "@stackpay/sdk";
+  const node = `import { StackPay } from "stackpay";
 
 const stackpay = new StackPay({
   secretKey: process.env.STACKPAY_SECRET_KEY, // sk_${environment}_…
