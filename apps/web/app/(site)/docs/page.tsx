@@ -448,6 +448,9 @@ export default function DocsPage() {
                 appear in the reconciliation export and at{" "}
                 <Code>/api/v1/refunds</Code>. Refunds are paid from your wallet,
                 not from the processor balance, so withdraw first if needed.
+                StackPay checks your wallet balance before asking you to sign. An
+                invoice paid from your own wallet can’t be refunded, because
+                Stacks doesn’t allow transfers to yourself.
               </Note>
             </Section>
             <Section id="settlements">

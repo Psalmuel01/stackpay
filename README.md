@@ -136,7 +136,7 @@ Supabase stores:
    - activity, the in-app notification, and the merchant event.
 
    A rollback orphans the receipt and emits `invoice.payment_reverted`.
-4. Merchant events fan out to webhook endpoints and are delivered by the job runner.
+4. Merchant events fan out to webhook endpoints. Delivery is attempted right after the payment, refund or test event is recorded; the job runner retries failures.
 
 Checkout also verifies the payment transaction directly, so a payment is recorded even if the Chainhook is late.
 

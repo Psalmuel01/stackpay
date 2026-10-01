@@ -41,7 +41,20 @@ npm run build
 
 To run a second dev server or a build next to a running one, give it its own output directory: `NEXT_DIST_DIR=.next-build npm run build`.
 
-For local webhook testing, run the demo receiver with `STACKPAY_WEBHOOK_SECRET=<endpoint secret> npm run webhook:listen` (it prints each event and verifies its signature) and register `http://localhost:4242/webhooks` in Developer. Allowing `http://localhost` needs `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS=true` (development only; production refuses to start with it). Background work (retries, webhook delivery, expiry) runs when you call the job runner: `curl -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" http://localhost:3000/api/internal/jobs`.
+### What runs locally
+
+Locally you get the full console, checkout, payments, refunds and API. Payments are recorded when the payer's checkout page confirms them. Two outside services can't reach `localhost`:
+- **Chainhook:** Hiro can't call you, so a payment is only recorded if the checkout stays open until confirmation.
+- **Scheduled job runner:** Supabase's cron can't call you, so run it yourself when you need retries or cleanup (command below).
+
+If `.env.local` points at the same Supabase project as production, the two share data. Production's cron then processes the shared webhook queue, cannot reach `localhost` endpoints, and disables them after five failures. While testing webhooks locally, either pause the production cron ([operations](operations.md) §3), or use a separate database (`npm run supabase:start`). Afterwards, pause or delete `localhost` endpoints before resuming the cron.
+
+For local webhook testing, run the demo receiver with `STACKPAY_WEBHOOK_SECRET=<endpoint secret> npm run webhook:listen` (it prints each event and verifies its signature) and register `http://localhost:4242/webhooks` in Developer. Allowing `http://localhost` needs `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS=true` (development only; production refuses to start with it). Webhooks for payments, refunds and test events are sent immediately. Retries, unread-invoice expiry and cleanup run when you call the job runner, for example every minute from `apps/web`:
+
+```sh
+set -a && . ./.env.local && set +a
+while true; do date +%T; curl -s -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" http://localhost:3000/api/internal/jobs; echo; sleep 60; done
+```
 
 For UI changes, review the homepage, docs, and merchant entry screen at desktop and narrow mobile widths. Check keyboard focus, navigation, documentation anchors, search with no results, and open menus. Authenticated payment flows also require real wallet testing on the configured network; a successful build does not verify extension behavior.
 

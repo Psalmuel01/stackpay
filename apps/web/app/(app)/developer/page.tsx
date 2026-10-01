@@ -254,7 +254,7 @@ function Webhooks() {
     try {
       if (action === "test") {
         await api(`/api/webhook-endpoints/${endpoint.id}/test`, { method: "POST" });
-        setNotice("Test event queued. It appears in recent deliveries within a minute.");
+        setNotice("Test event sent. Its result is in recent deliveries below.");
       } else if (action === "toggle") {
         await api(`/api/webhook-endpoints/${endpoint.id}`, { method: "PATCH", body: JSON.stringify({ status: endpoint.status === "enabled" ? "disabled" : "enabled" }) });
       } else if (action === "rotate") {

@@ -41,7 +41,12 @@ Optional alert tuning, in minutes:
    ```
 
    The pair must already be registered with evidence (see [deployment registry](stackpay-deployment-registry.md)). Until it is active, `/api/health/ready` reports `deployment: false` and new chain records are left unbound.
-4. **Chainhook.** Point the Chainhook's HTTP action at `https://<origin>/api/webhooks/chainhooks` with `Authorization: Bearer <STACKPAY_CHAINHOOK_SECRET>`, watching both contracts' `contract_log` (print) events, as in [the sample definition](stackpay-chainhook-invoice-paid.json).
+4. **Chainhook** (Hiro platform → Chainhooks), one per network:
+   - **Listen for:** Contract Events → **contract log** (print) events from both the `arch` and the `proc` contract. Leave the event-name filter empty. If one Chainhook can't hold both contracts, create two with the same URL. See [the sample definition](stackpay-chainhook-invoice-paid.json).
+   - **Network:** testnet or mainnet, matching `NEXT_PUBLIC_STACKS_NETWORK`.
+   - **Action:** HTTP POST to `https://<origin>/api/webhooks/chainhooks`. It must be the deployed site, because Hiro cannot reach `localhost`.
+   - **Options:** decode Clarity values on; include block metadata on.
+   - **Secret:** the per-network key under **Manage secret key** goes in `STACKPAY_CHAINHOOK_SECRET`; Hiro sends it as `Authorization: Bearer …`. API Hub **API keys** are a different thing: they raise rate limits for calling Hiro's API, and StackPay does not use them.
 5. **Scheduled jobs.** See §3.
 6. **Smoke test** on testnet:
    - `GET /api/health/ready` returns 200;
@@ -106,8 +111,15 @@ To stop it: `select cron.unschedule('stackpay-jobs');`. The scheduler can only r
 - **Vercel Pro:** add a cron for `/api/internal/jobs` with schedule `* * * * *`. Vercel sends `CRON_SECRET` automatically. (Hobby plans allow only daily crons, which is not enough.)
 - **Anything else** (an external cron service, a GitHub Actions schedule): `curl -fsS -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" https://<origin>/api/internal/jobs`.
 
-If jobs stop, payments are still recorded, because the Chainhook receiver and checkout process them inline. However:
-- retries and webhook delivery stall;
+To pause and resume the Supabase job (for example while testing webhooks locally against the same database):
+
+```sql
+select cron.alter_job((select jobid from cron.job where jobname = 'stackpay-jobs'), active := false);  -- pause
+select cron.alter_job((select jobid from cron.job where jobname = 'stackpay-jobs'), active := true);   -- resume
+```
+
+If jobs stop, payments are still recorded, because the Chainhook receiver and checkout process them inline. Webhooks for payments, refunds and test events are still attempted immediately. However:
+- failed deliveries are not retried;
 - unread invoices are not expired;
 - the `jobs_not_running` alert fires after 10 minutes.
 
