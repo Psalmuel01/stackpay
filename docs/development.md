@@ -41,7 +41,7 @@ npm run build
 
 To run a second dev server or a build next to a running one, give it its own output directory: `NEXT_DIST_DIR=.next-build npm run build`.
 
-For local webhook testing against `http://localhost`, set `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS=true` (development only; production refuses to start with it). Background work (retries, webhook delivery, expiry) runs when you call the job runner: `curl -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" http://localhost:3000/api/internal/jobs`.
+For local webhook testing, run the demo receiver with `STACKPAY_WEBHOOK_SECRET=<endpoint secret> npm run webhook:listen` (it prints each event and verifies its signature) and register `http://localhost:4242/webhooks` in Developer. Allowing `http://localhost` needs `STACKPAY_ALLOW_LOCALHOST_WEBHOOKS=true` (development only; production refuses to start with it). Background work (retries, webhook delivery, expiry) runs when you call the job runner: `curl -X POST -H "Authorization: Bearer $STACKPAY_JOB_SECRET" http://localhost:3000/api/internal/jobs`.
 
 For UI changes, review the homepage, docs, and merchant entry screen at desktop and narrow mobile widths. Check keyboard focus, navigation, documentation anchors, search with no results, and open menus. Authenticated payment flows also require real wallet testing on the configured network; a successful build does not verify extension behavior.
 

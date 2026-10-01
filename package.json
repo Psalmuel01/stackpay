@@ -21,7 +21,8 @@
     "test:contracts": "npm run -w @stackpay/contracts test",
     "test:web": "npm run -w @stackpay/web test:security",
     "test:db": "scripts/test-db.sh",
-    "test": "npm run test:web && npm run test:contracts && npm run test:db"
+    "test": "npm run test:web && npm run test:contracts && npm run test:db",
+    "webhook:listen": "node scripts/webhook-receiver.mjs"
   },
   "devDependencies": {
     "supabase": "^2.81.3"

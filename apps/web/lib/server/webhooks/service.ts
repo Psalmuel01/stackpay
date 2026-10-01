@@ -155,7 +155,9 @@ export async function sendPing(merchantId: string, publicId: string) {
   if (row.status !== "enabled") throw new ApiError(409, "endpoint_disabled", "Enable the endpoint before sending a test event.");
   const delivery = await callRpc<Row | null>("send_webhook_ping", { p_merchant_id: merchantId, p_endpoint_public_id: publicId });
   if (!delivery) throw notFound("webhook endpoint", publicId);
-  return serializeDelivery(delivery, row, null);
+  // Send now so the merchant sees the result immediately; the job runner retries anything left.
+  await deliverDueWebhooks({ limit: 10 }).catch(() => undefined);
+  return retrieveDelivery(merchantId, String(delivery.public_id)).catch(() => serializeDelivery(delivery, row, null));
 }
 
 async function withRelations(rows: Row[]) {
@@ -193,6 +195,7 @@ export async function replayDelivery(merchantId: string, publicId: string, actor
   const replay = await callRpc<Row | null>("replay_webhook_delivery", { p_merchant_id: merchantId, p_public_id: publicId });
   if (!replay?.id) throw notFound("webhook delivery", publicId);
   await audit({ merchantId, actorType: actor.type, actorId: actor.id, action: "webhook_delivery.replayed", targetType: "webhook_delivery", targetId: publicId, requestId: actor.requestId });
+  await deliverDueWebhooks({ limit: 10 }).catch(() => undefined);
   return retrieveDelivery(merchantId, replay.public_id);
 }
 
