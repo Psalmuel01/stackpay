@@ -1,3 +1,4 @@
+import { deliverWebhooksSoon } from "@/lib/server/webhooks/service";
 import { publicInvoice } from "@/lib/server/public-projections";
 import { jsonError, jsonOk, logTransactionResponse } from "@/lib/server/http";
 import { confirmInvoicePayment, verifyInvoicePaymentTransaction } from "@/lib/server/stackpay-service";
@@ -64,6 +65,7 @@ export async function POST(
       },
     };
     logTransactionResponse("invoice.payment.response", responsePayload);
+    deliverWebhooksSoon();
     return jsonOk(responsePayload);
   } catch (error) {
     return apiFailure(error);

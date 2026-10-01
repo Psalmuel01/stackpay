@@ -2,6 +2,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 const service = vi.hoisted(() => ({ getInvoiceDetailsByOnchainId: vi.fn(), verifyInvoicePaymentTransaction: vi.fn(), confirmInvoicePayment: vi.fn(), getPublicPaymentLinkBySlug: vi.fn(), preparePublicInvoiceFromLink: vi.fn(), confirmPublicInvoiceCreation: vi.fn() }));
 vi.mock("../lib/server/stackpay-service", () => service);
 vi.mock("../lib/server/supabase-admin", () => ({ isSupabaseConfigured: () => true }));
+const hooks = vi.hoisted(() => ({ deliverWebhooksSoon: vi.fn() }));
+vi.mock("../lib/server/webhooks/service", () => hooks);
 vi.mock("../lib/server/stacks-api", () => ({ syncInvoiceCreationTx: vi.fn(async () => ({ status: "success", onchainId: "INV_1", txId: "0xabc", confirmedAt: 1700000000 })) }));
 import { GET as invoiceRead } from "../app/api/invoices/[invoiceId]/route";
 import { POST as paymentConfirm } from "../app/api/invoices/[invoiceId]/payment/route";
@@ -33,4 +35,11 @@ it.each([
   const body = await response.text();
   for (const marker of ["private@example.test", "Private Person", "private-metadata", "private-merchant-id", "private-intent"]) expect(body).not.toContain(marker);
   expect(body).toContain("STX");
+});
+it("sends the merchant's webhooks as soon as a payment is confirmed, not only when it is pending", async () => {
+  await paymentConfirm(post(), { params: Promise.resolve({ invoiceId: "INV_1" }) });
+  expect(hooks.deliverWebhooksSoon).toHaveBeenCalledTimes(1);
+  service.verifyInvoicePaymentTransaction.mockResolvedValue({ status: "pending" });
+  await paymentConfirm(post(), { params: Promise.resolve({ invoiceId: "INV_1" }) });
+  expect(hooks.deliverWebhooksSoon).toHaveBeenCalledTimes(1);
 });

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { ApiError } from "../api-error";
 import { callRpc, insertRow, patchRows, selectRows } from "../supabase-admin";
@@ -305,4 +306,18 @@ export async function deliverDueWebhooks(options: { limit?: number } = {}) {
     }
   }));
   return summary;
+}
+
+/**
+ * Sends due webhooks after the current response is finished, so merchants hear about a payment
+ * or refund within seconds instead of waiting for the job runner (which still retries failures).
+ * Outside a request (tests, scripts) it runs in the background.
+ */
+export function deliverWebhooksSoon() {
+  const run = () => deliverDueWebhooks({ limit: 10 }).then(() => undefined, () => undefined);
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
 }

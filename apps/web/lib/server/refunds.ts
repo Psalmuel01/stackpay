@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApiError } from "./api-error";
 import { audit } from "./audit";
+import { deliverWebhooksSoon } from "./webhooks/service";
 import { callRpc, selectRows } from "./supabase-admin";
 import { getWalletBalances, syncVerifiedTransaction, tokenContracts } from "./stacks-api";
 import { refundMemo, memoHex, verifyRefundPayload, type ExpectedRefund } from "./refund-verification";
@@ -167,6 +168,7 @@ export async function confirmRefund(merchant: Merchant, invoiceRef: string, inpu
   });
   switch (result.outcome) {
     case "recorded":
+      deliverWebhooksSoon();
       await audit({ merchantId: merchant.id, actorType: "wallet", actorId: merchant.wallet, action: "refund.recorded", targetType: "invoice", targetId: String(invoice.public_id), metadata: { tx_id: txId, amount: atomicToDecimal(units, currency), currency } });
     // falls through
     case "exists":

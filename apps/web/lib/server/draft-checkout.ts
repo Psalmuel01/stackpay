@@ -1,4 +1,5 @@
 import { ApiError } from "./api-error";
+import { deliverWebhooksSoon } from "./webhooks/service";
 import { callRpc, selectRows } from "./supabase-admin";
 import { buildCreatePublicInvoiceFromLinkIntent } from "./stackpay-contracts";
 import { syncInvoiceCreationTx } from "./stacks-api";
@@ -88,5 +89,6 @@ export async function confirmDraftCheckout(publicId: string, txId: string, expir
   });
   if (result.outcome === "conflict") throw new ApiError(409, "invoice_conflict", "A different on-chain invoice is already attached to this invoice.");
   if (result.outcome === "mismatch" || result.outcome === "not_found") throw new ApiError(409, "invoice_mismatch", "The on-chain invoice does not match this payment request.");
+  deliverWebhooksSoon(); // invoice.pending
   return { status: "success" as const, onchainInvoiceId: sync.onchainId };
 }
