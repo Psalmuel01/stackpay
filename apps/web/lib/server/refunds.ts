@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ApiError } from "./api-error";
 import { audit } from "./audit";
 import { callRpc, selectRows } from "./supabase-admin";
-import { syncVerifiedTransaction, tokenContracts } from "./stacks-api";
+import { getWalletBalances, syncVerifiedTransaction, tokenContracts } from "./stacks-api";
 import { refundMemo, memoHex, verifyRefundPayload, type ExpectedRefund } from "./refund-verification";
 import { atomicToDecimal, decimalToAtomic, type PaymentCurrency } from "../amounts";
 import { normalizeTransactionId } from "../transaction-id";
@@ -65,6 +65,32 @@ function checkAmount(amount: string, currency: PaymentCurrency, remaining: bigin
   return units;
 }
 
+/** STX kept aside for the network fee when the refund itself is in STX. */
+const STX_FEE_HEADROOM = 10_000n; // 0.01 STX
+
+/**
+ * Refunds are paid from the merchant's wallet, but payments accrue in the processor contract until
+ * withdrawn. Catch an underfunded wallet here with a clear next step, instead of a failed broadcast.
+ * If balances can't be read, let the wallet decide rather than blocking the refund.
+ */
+async function assertWalletCanCover(wallet: string, currency: PaymentCurrency, units: bigint) {
+  let held: string | null;
+  try {
+    held = (await getWalletBalances(wallet))[currency];
+  } catch {
+    return;
+  }
+  if (held === null) return;
+  const needed = currency === "STX" ? units + STX_FEE_HEADROOM : units;
+  if (decimalToAtomic(held, currency) < needed) {
+    throw new ApiError(
+      409,
+      "insufficient_wallet_balance",
+      `Refunds are sent from your wallet, which holds ${held} ${currency}; this refund needs ${atomicToDecimal(units, currency)} ${currency}${currency === "STX" ? " plus a small network fee" : ""}. Payments stay in your processor balance until you withdraw them, so withdraw from Settlements first.`
+    );
+  }
+}
+
 function expectedRefund(merchant: Merchant, payer: string, currency: PaymentCurrency, units: bigint, memo: string): ExpectedRefund {
   return {
     network: network(),
@@ -80,6 +106,11 @@ function expectedRefund(merchant: Merchant, payer: string, currency: PaymentCurr
 export async function prepareRefund(merchant: Merchant, invoiceRef: string, input: z.infer<typeof refundAmountSchema>) {
   const { invoice, currency, payer, remaining } = await loadRefundable(merchant, invoiceRef);
   const units = checkAmount(input.amount, currency, remaining);
+  // Stacks rejects transfers to oneself, so the wallet could never broadcast this refund.
+  if (payer === merchant.wallet) {
+    throw new ApiError(409, "refund_to_self", "This invoice was paid from your own wallet, so there is no one to refund. Pay from a different wallet to try refunds.");
+  }
+  await assertWalletCanCover(merchant.wallet, currency, units);
   const memo = refundMemo(String(invoice.public_id));
   const base = { invoiceId: invoice.public_id, currency, amount: atomicToDecimal(units, currency), recipient: payer, remaining: atomicToDecimal(remaining, currency) };
   if (currency === "STX") {

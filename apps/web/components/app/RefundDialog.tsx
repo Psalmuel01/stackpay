@@ -131,7 +131,7 @@ export default function RefundDialog({
       <div className="flex items-start justify-between gap-3 border-b border-line p-5">
         <div>
           <h2 id="refund-title" className="text-lg font-semibold">Refund payment</h2>
-          <p className="mt-0.5 text-sm text-muted">Sent from your wallet back to the customer who paid.</p>
+          <p className="mt-0.5 text-sm text-muted">Sent from your connected wallet, not your processor balance, back to the wallet that paid.</p>
         </div>
         <button type="button" className="btn btn-ghost btn-icon -m-2" aria-label="Close" disabled={busy} onClick={() => dialogRef.current?.close()}>
           <X size={18} aria-hidden="true" />
