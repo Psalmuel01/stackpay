@@ -31,6 +31,10 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
+-- Like hosted Supabase: pgcrypto lives in "extensions", which is NOT on the migration search_path,
+-- so migrations must not depend on unqualified pgcrypto functions.
+create schema extensions;
+create extension pgcrypto schema extensions;
 create function auth.role() returns text language sql stable as $$
   select coalesce(current_setting('request.jwt.claim.role', true), 'service_role')
 $$;

@@ -8,7 +8,7 @@
 
 -- Endpoints -----------------------------------------------------------------------------------
 alter table public.webhook_endpoints
-  add column if not exists public_id text not null default ('we_' || encode(gen_random_bytes(12), 'hex')),
+  add column if not exists public_id text not null default public.random_public_id('we_'),
   add column if not exists description text not null default '',
   add column if not exists enabled_events text[] not null default array['*'],
   add column if not exists status text not null default 'enabled',
@@ -32,7 +32,7 @@ alter table public.webhook_endpoints add constraint webhook_endpoints_no_plainte
 
 -- Deliveries ----------------------------------------------------------------------------------
 alter table public.webhook_deliveries
-  add column if not exists public_id text not null default ('whd_' || encode(gen_random_bytes(12), 'hex')),
+  add column if not exists public_id text not null default public.random_public_id('whd_'),
   add column if not exists event_id uuid references public.merchant_events(id) on delete restrict,
   add column if not exists replay_of uuid references public.webhook_deliveries(id) on delete set null,
   add column if not exists attempts integer not null default 0,

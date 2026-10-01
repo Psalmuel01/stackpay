@@ -29,7 +29,7 @@ $$;
 
 create table if not exists public.refunds (
   id uuid primary key default gen_random_uuid(),
-  public_id text not null unique default ('rfd_' || encode(gen_random_bytes(12), 'hex')),
+  public_id text not null unique default public.random_public_id('rfd_'),
   merchant_id uuid not null references public.merchant_profiles(id) on delete restrict,
   invoice_id uuid not null references public.invoices(id) on delete restrict,
   receipt_id uuid not null references public.receipts(id) on delete restrict,

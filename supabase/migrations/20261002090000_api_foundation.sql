@@ -9,9 +9,23 @@
 -- * Idempotency keys: durable claims with request hashes and stored responses.
 -- * Audit log for security-relevant actions.
 
+-- Random public ids without pgcrypto: hosted Supabase installs pgcrypto in the "extensions" schema,
+-- which is not on the migration search_path. Two v4 UUIDs (core since PostgreSQL 13) supply 96 random
+-- bits as 24 lowercase hex characters; the version/variant nibbles are skipped.
+create or replace function public.random_public_id(p_prefix text)
+returns text
+language sql
+volatile
+set search_path = pg_catalog
+as $$
+  select p_prefix
+    || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)
+    || substr(replace(gen_random_uuid()::text, '-', ''), 21, 12)
+$$;
+
 -- Invoice lifecycle ---------------------------------------------------------------------------
 alter table public.invoices
-  add column if not exists public_id text not null default ('inv_' || encode(gen_random_bytes(12), 'hex'));
+  add column if not exists public_id text not null default public.random_public_id('inv_');
 create unique index if not exists invoices_public_id on public.invoices (public_id);
 
 alter table public.invoices alter column onchain_invoice_id drop not null;
@@ -219,7 +233,7 @@ for each row execute function public.stamp_invoice_event_id();
 
 -- API keys -----------------------------------------------------------------------------------
 create table if not exists public.api_keys (
-  id text primary key default ('key_' || encode(gen_random_bytes(12), 'hex')),
+  id text primary key default public.random_public_id('key_'),
   merchant_id uuid not null references public.merchant_profiles(id) on delete restrict,
   name text not null default '' check (length(name) <= 80),
   environment text not null check (environment in ('test', 'live')),

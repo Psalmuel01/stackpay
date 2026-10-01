@@ -143,4 +143,17 @@ begin
 end;
 $$;
 
+do $$
+declare
+  v_id text;
+begin
+  for i in 1..200 loop
+    v_id := public.random_public_id('inv_');
+    if v_id !~ '^inv_[0-9a-f]{24}$' then raise exception 'bad public id %', v_id; end if;
+  end loop;
+  if (select count(distinct public.random_public_id('x_')) from generate_series(1, 1000)) <> 1000 then
+    raise exception 'public ids collided';
+  end if;
+end;
+$$;
 rollback;
