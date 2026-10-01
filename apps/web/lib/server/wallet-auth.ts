@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { publicKeyToAddress, validateStacksAddress } from "@stacks/transactions";
 import { verifyMessageSignatureRsv } from "@stacks/encryption";
-import { readJsonObject } from "./request-body";
+import { readOptionalJsonObject } from "./request-body";
 import { ApiError } from "./api-error";
 import { selectRows, supabaseRequest } from "./supabase-admin";
 
@@ -77,7 +77,8 @@ export async function requireMerchant(request: Request) {
   let supplied: unknown;
   if (request.method === "GET") supplied = new URL(request.url).searchParams.get("walletAddress");
   else {
-    const payload = await readJsonObject(request.clone());
+    // Bodiless actions (send test, rotate, delete, replay) carry no wallet assertion.
+    const payload = await readOptionalJsonObject(request.clone());
     supplied = payload.walletAddress;
   }
   if (supplied != null && supplied !== wallet) throw new ApiError(403, "wallet_mismatch", "This wallet does not own the session.");

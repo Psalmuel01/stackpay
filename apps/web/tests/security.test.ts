@@ -69,6 +69,14 @@ describe("wallet identity", () => {
     await expect(requireMerchant(new Request("https://stackpay.test/api/invoices", { method: "POST", headers: { origin: "https://evil.test" }, body: "{}" }))).rejects.toMatchObject({ status: 403 });
     expect(selectRows).not.toHaveBeenCalled();
   });
+  it("accepts bodiless mutations such as send test or rotate, but still rejects malformed bodies", async () => {
+    selectRows.mockResolvedValue([{ wallet_address: wallet }]);
+    const post = (body?: string) => new Request("https://stackpay.test/api/webhook-endpoints/we_1/test", { method: "POST", headers: { origin: "https://stackpay.test", cookie: "stackpay-session=" + "a".repeat(64), "content-type": "application/json" }, body });
+    await expect(requireMerchant(post())).resolves.toBe(wallet);
+    await expect(requireMerchant(post(""))).resolves.toBe(wallet);
+    await expect(requireMerchant(post("{not json"))).rejects.toBeInstanceOf(SyntaxError);
+    await expect(requireMerchant(post(JSON.stringify({ walletAddress: "other" })))).rejects.toMatchObject({ status: 403 });
+  });
   it("accepts the session owner and queries only unexpired sessions", async () => {
     selectRows.mockResolvedValue([{ wallet_address: wallet }]);
     await expect(requireMerchant(new Request(`https://stackpay.test/api/invoices?walletAddress=${wallet}`, { headers: { cookie: "stackpay-session=" + "a".repeat(64) } }))).resolves.toBe(wallet);
