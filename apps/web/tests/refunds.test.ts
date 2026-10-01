@@ -26,6 +26,9 @@ let invoice: Record<string, unknown>;
 const params = { params: Promise.resolve({ invoiceId: ID }) };
 const post = (path: string, body: unknown) => new Request(`https://stackpay.test${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
+function walletBalances(stx: string, usdcx: string) {
+  return { stx: { balance: stx }, fungible_tokens: { [`${TOKEN}::usdcx-token`]: { balance: usdcx } } };
+}
 function anchored(extra: Record<string, unknown>): Record<string, any> {
   return { tx_id: txId, tx_status: "success", sender_address: MERCHANT_WALLET, canonical: true, microblock_canonical: true, is_unanchored: false, block_height: 812, block_hash: "0xbb", burn_block_time: 1_700_000_000, ...extra };
 }
@@ -47,6 +50,8 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   vi.stubEnv("NEXT_PUBLIC_STACKS_NETWORK", "testnet");
   auth.requireMerchant.mockResolvedValue(MERCHANT_WALLET);
+  // The merchant's wallet balances (Hiro /balances), ample unless a test says otherwise.
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json(walletBalances("100000000", "1000000000"))));
   invoice = { id: "row-1", public_id: ID, merchant_id: MERCHANT, status: "paid", currency: "USDCx", amount_text: "10.00000000", refunded_text: "3.00000000" };
   db.selectRows.mockImplementation(async (table: string) => {
     if (table === "merchant_profiles") return [{ id: MERCHANT, wallet_address: MERCHANT_WALLET }];
@@ -103,6 +108,39 @@ describe("refund routes", () => {
     const tooMuch = await prepare(post(`/api/invoices/${ID}/refunds`, { amount: "7.000001" }), params);
     expect(tooMuch.status).toBe(409);
     expect((await tooMuch.json()).error.code).toBe("refund_exceeds_remaining");
+  });
+
+  it("refuses a refund to the merchant's own wallet, which Stacks cannot broadcast", async () => {
+    db.selectRows.mockImplementation(async (table: string) => {
+      if (table === "merchant_profiles") return [{ id: MERCHANT, wallet_address: MERCHANT_WALLET }];
+      if (table === "invoices") return [invoice];
+      if (table === "receipts") return [{ payer_wallet_address: MERCHANT_WALLET, public_id: "rcpt_1" }];
+      return [];
+    });
+    const response = await prepare(post(`/api/invoices/${ID}/refunds`, { amount: "1" }), params);
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe("refund_to_self");
+  });
+
+  it("explains an underfunded wallet before asking it to sign", async () => {
+    vi.stubEnv("NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME", "usdcx-token");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json(walletBalances("100000000", "2000000"))));
+    const response = await prepare(post(`/api/invoices/${ID}/refunds`, { amount: "7" }), params);
+    expect(response.status).toBe(409);
+    const { error } = await response.json();
+    expect(error.code).toBe("insufficient_wallet_balance");
+    expect(error.message).toMatch(/holds 2 USDCx.*withdraw from Settlements/);
+  });
+
+  it("keeps STX headroom for the network fee", async () => {
+    invoice = { ...invoice, currency: "STX", amount_text: "10.000000", refunded_text: "0" };
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json(walletBalances("2500000", "0"))));
+    expect((await prepare(post(`/api/invoices/${ID}/refunds`, { amount: "2.5" }), params)).status).toBe(409);
+  });
+
+  it("does not block the refund when balances cannot be read", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    expect((await prepare(post(`/api/invoices/${ID}/refunds`, { amount: "1" }), params)).status).toBe(200);
   });
 
   it("uses a native STX transfer for STX invoices", async () => {
