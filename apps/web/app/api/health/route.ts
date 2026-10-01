@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
-import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
+export const dynamic = "force-dynamic";
+
+/** Liveness: the process is up and serving. Deliberately touches no dependencies. */
 export async function GET() {
-  return NextResponse.json({
-    status: "ok",
-    storage: {
-      engine: "supabase",
-      configured: isSupabaseConfigured(),
-    },
-    contracts: {
-      architecture: process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? null,
-    },
-  });
+  return NextResponse.json({ status: "ok", time: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
 }

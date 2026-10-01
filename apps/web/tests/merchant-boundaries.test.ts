@@ -22,7 +22,7 @@ const origin = "https://stackpay.test";
 const cookie = "stackpay-session=" + "a".repeat(64);
 const mutations = [
   ["profile", "POST", profile.POST], ["invoices", "POST", invoices.POST], ["invoice confirmation", "POST", invoiceConfirm.POST],
-  ["links", "POST", links.POST], ["link confirmation", "POST", (r: Request) => linkConfirm.POST(r, { params: { paymentLinkId: "other-link" } })],
+  ["links", "POST", links.POST], ["link confirmation", "POST", (r: Request) => linkConfirm.POST(r, { params: Promise.resolve({ paymentLinkId: "other-link" }) })],
   ["QR", "POST", qr.POST], ["notifications", "PATCH", notifications.PATCH], ["settlements", "POST", settlements.POST], ["settlement confirmation", "POST", settlementConfirm.POST],
 ] as const;
 const reads = [

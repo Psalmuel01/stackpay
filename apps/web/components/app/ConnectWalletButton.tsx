@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, Copy, Landmark, LogOut, Wallet } from "lucide-react";
+import { ChevronDown, Copy, Landmark, LogOut, MonitorX, Wallet } from "lucide-react";
 import { connectWallet, disconnectWallet, getConnectedWalletAddress, walletErrorMessage } from "@/lib/wallet-connection";
+import { formatDecimalAmount } from "@/lib/amounts";
 
+/** Exact decimal strings; null means the balance could not be read. */
 type WalletBalances = {
-  STX: number | null;
-  sBTC: number | null;
-  USDCx: number | null;
+  STX: string | null;
+  sBTC: string | null;
+  USDCx: string | null;
 };
 
 type MerchantProfile = {
@@ -20,15 +22,12 @@ function truncateAddress(address: string, start = 6, end = 4) {
   return `${address.slice(0, start)}…${address.slice(-end)}`;
 }
 
-function formatBalance(amount: number | null, symbol: "STX" | "sBTC" | "USDCx") {
+function formatBalance(amount: string | null, symbol: "STX" | "sBTC" | "USDCx") {
   if (amount === null) {
     return "Unavailable";
   }
 
-  return `${new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: symbol === "sBTC" ? 8 : 2,
-  }).format(amount)} ${symbol}`;
+  return `${formatDecimalAmount(amount, symbol)} ${symbol}`;
 }
 
 const menuItem =
@@ -152,10 +151,10 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
     } finally { setConnecting(false); }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (scope: "this" | "all" = "this") => {
     setConnectionError(null);
     try {
-      const response = await fetch("/api/auth/session", { method: "DELETE" });
+      const response = await fetch(scope === "all" ? "/api/auth/session?scope=all" : "/api/auth/session", { method: "DELETE" });
       if (!response.ok) {
         const payload = await response.json();
         throw new Error(payload.error?.message ?? "Could not sign out securely. Please try again.");
@@ -229,7 +228,7 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
     );
   }
 
-  const balanceRows: Array<["STX" | "sBTC" | "USDCx", number | null]> = [
+  const balanceRows: Array<["STX" | "sBTC" | "USDCx", string | null]> = [
     ["sBTC", balances?.sBTC ?? null],
     ["STX", balances?.STX ?? null],
     ["USDCx", balances?.USDCx ?? null],
@@ -319,7 +318,11 @@ export default function ConnectWalletButton({ variant = "header" }: { variant?: 
               <Copy size={17} aria-hidden="true" className="text-muted" />
               Copy address
             </button>
-            <button type="button" onClick={handleDisconnect} className={`${menuItem} text-danger hover:bg-danger/10`}>
+            <button type="button" onClick={() => handleDisconnect("all")} className={`${menuItem} text-fg-2 hover:bg-subtle hover:text-fg`}>
+              <MonitorX size={17} aria-hidden="true" className="text-muted" />
+              Sign out of all devices
+            </button>
+            <button type="button" onClick={() => handleDisconnect()} className={`${menuItem} text-danger hover:bg-danger/10`}>
               <LogOut size={17} aria-hidden="true" />
               Sign out and disconnect
             </button>

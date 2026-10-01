@@ -3,6 +3,11 @@ import { ApiError } from "./api-error";
 import { verifyTransactionPayload, type ExpectedTransaction } from "./transaction-verification";
 import { stacksNetworks } from "@stackpay/config";
 import { cvToHex, cvToValue, hexToCV, principalCV, stringAsciiCV } from "@stacks/transactions";
+import { atomicToDecimal, parseAtomicUnits, type PaymentCurrency } from "../amounts";
+
+// Upstream chain calls must never hang a request indefinitely.
+const CHAIN_TIMEOUT_MS = 10_000;
+const chainSignal = () => AbortSignal.timeout(CHAIN_TIMEOUT_MS);
 
 function getStacksApiUrl() {
   const network = process.env.NEXT_PUBLIC_STACKS_NETWORK ?? "testnet";
@@ -22,16 +27,18 @@ export const tokenContracts = {
     "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx",
 } as const;
 
+/** Exact decimal strings; null means the balance could not be read, never zero. */
 export type WalletBalances = {
-  STX: number | null;
-  sBTC: number | null;
-  USDCx: number | null;
+  STX: string | null;
+  sBTC: string | null;
+  USDCx: string | null;
 };
 
+/** Exact decimal strings of the merchant's withdrawable processor balance. */
 export type ProcessorBalances = {
-  STX: number;
-  sBTC: number;
-  USDCx: number;
+  STX: string;
+  sBTC: string;
+  USDCx: string;
 };
 
 export type TxSyncResult =
@@ -45,6 +52,9 @@ export type TxSyncResult =
       senderAddress: string;
       txId: string;
       confirmedAt: number | null;
+      /** Anchor block of the confirmed transaction, used as the payment's chain identity. */
+      blockHash: string | null;
+      blockHeight: number | null;
     }
   | {
       status: "abort_by_response" | "abort_by_post_condition" | "failed";
@@ -62,21 +72,17 @@ function parseContractId(contractId: string) {
   return { contractAddress, contractName };
 }
 
-function atomicToAmount(value: string | number | null | undefined, decimals: number) {
-  const normalized = String(value ?? "0").trim();
-  if (!/^\d+$/.test(normalized)) {
-    return null;
-  }
-
-  return Number(normalized) / 10 ** decimals;
+function atomicToAmount(value: string | number | bigint | null | undefined, currency: PaymentCurrency) {
+  const units = parseAtomicUnits(value ?? "0");
+  return units === null ? null : atomicToDecimal(units, currency);
 }
 
-function unwrapCvScalar(value: any): string | number | null {
+function unwrapCvScalar(value: any): string | number | bigint | null {
   if (value === null || value === undefined) {
     return null;
   }
 
-  if (typeof value === "string" || typeof value === "number") {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
     return value;
   }
 
@@ -87,7 +93,7 @@ function unwrapCvScalar(value: any): string | number | null {
   return null;
 }
 
-function extractBalanceAmount(value: any): string | number | null {
+function extractBalanceAmount(value: any): string | number | bigint | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -107,32 +113,33 @@ function findTokenBalance(
   fungibleTokens: Record<string, { balance?: string | number }>,
   contractId: string,
   assetName: string,
-  decimals: number
+  currency: PaymentCurrency
 ) {
   const key = `${contractId}::${assetName}`;
   if (!Object.prototype.hasOwnProperty.call(fungibleTokens, key)) {
-    return 0;
+    return "0";
   }
 
-  return atomicToAmount(fungibleTokens[key]?.balance, decimals);
+  return atomicToAmount(fungibleTokens[key]?.balance, currency);
 }
 
 export async function getWalletBalances(address: string): Promise<WalletBalances> {
   const response = await fetch(`${getStacksApiUrl()}/extended/v1/address/${address}/balances`, {
     cache: "no-store",
+    signal: chainSignal(),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch wallet balances for ${address}.`);
+    throw new ApiError(503, "chain_unavailable", "Wallet balances are temporarily unavailable.");
   }
 
   const payload = await response.json();
   const fungibleTokens = (payload.fungible_tokens ?? {}) as Record<string, { balance?: string | number }>;
 
   return {
-    STX: atomicToAmount(payload.stx?.balance, 6),
-    sBTC: findTokenBalance(fungibleTokens, tokenContracts.sBTC, process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "sbtc-token", 8),
-    USDCx: findTokenBalance(fungibleTokens, tokenContracts.USDCx, process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "usdcx-token", 6),
+    STX: atomicToAmount(payload.stx?.balance, "STX"),
+    sBTC: findTokenBalance(fungibleTokens, tokenContracts.sBTC, process.env.NEXT_PUBLIC_STACKPAY_SBTC_ASSET_NAME ?? "sbtc-token", "sBTC"),
+    USDCx: findTokenBalance(fungibleTokens, tokenContracts.USDCx, process.env.NEXT_PUBLIC_STACKPAY_USDCX_ASSET_NAME ?? "usdcx-token", "USDCx"),
   };
 }
 
@@ -141,6 +148,10 @@ async function callProcessorReadOnly(functionName: string, args: string[]) {
   if (!contractId) {
     throw new Error("NEXT_PUBLIC_STACKPAY_PROCESSOR_CONTRACT_ID is not configured.");
   }
+  return callReadOnly(contractId, functionName, args);
+}
+
+async function callReadOnly(contractId: string, functionName: string, args: string[]) {
 
   const { contractAddress, contractName } = parseContractId(contractId);
   const response = await fetch(
@@ -151,6 +162,7 @@ async function callProcessorReadOnly(functionName: string, args: string[]) {
         "Content-Type": "application/json",
       },
       cache: "no-store",
+      signal: chainSignal(),
       body: JSON.stringify({
         sender: contractAddress,
         arguments: args,
@@ -159,7 +171,7 @@ async function callProcessorReadOnly(functionName: string, args: string[]) {
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to call read-only function ${functionName}.`);
+    throw new ApiError(503, "chain_unavailable", `The Stacks API could not run ${functionName}. Try again shortly.`);
   }
 
   return response.json();
@@ -174,14 +186,16 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
         cvToHex(stringAsciiCV(currency)),
       ]);
 
+      // A failed or unreadable call is "unavailable", never a zero balance.
       if (!payload.okay) {
-        return [currency, 0] as const;
+        throw new ApiError(503, "chain_unavailable", "Processor balances are temporarily unavailable. Try again shortly.");
       }
 
-      const cv = hexToCV(payload.result);
-      const value = cvToValue(cv);
-      const rawAmount = extractBalanceAmount(value);
-      const amount = atomicToAmount(rawAmount ?? 0, currency === "sBTC" ? 8 : 6) ?? 0;
+      const value = cvToValue(hexToCV(payload.result));
+      const amount = atomicToAmount(extractBalanceAmount(value), currency);
+      if (amount === null) {
+        throw new ApiError(503, "chain_unavailable", "Processor balances could not be read. Try again shortly.");
+      }
 
       return [currency, amount] as const;
     })
@@ -191,11 +205,20 @@ export async function getProcessorBalances(address: string): Promise<ProcessorBa
 }
 
 export async function syncTransaction(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
+  return syncVerifiedTransaction(txId, (payload, id) => verifyTransactionPayload(payload, id, expected));
+}
+
+/** Fetches a transaction and, once it is anchored and successful, runs the supplied verifier on it. */
+export async function syncVerifiedTransaction(
+  txId: string,
+  verify: (payload: any, txId: string) => { onchainId: string | null; senderAddress: string }
+): Promise<TxSyncResult> {
   const normalizedTxId = normalizeTransactionId(txId);
   if (!normalizedTxId) throw new ApiError(400, "invalid_tx_id", "A valid transaction id is required.");
   txId = normalizedTxId;
   const response = await fetch(`${getStacksApiUrl()}/extended/v1/tx/${txId}`, {
     cache: "no-store",
+    signal: chainSignal(),
   });
 
   if (response.status === 404) return { status: "pending" };
@@ -216,9 +239,11 @@ export async function syncTransaction(txId: string, expected: ExpectedTransactio
     return {
       status: "success",
       resultRepr,
-      ...verifyTransactionPayload(payload, txId, expected),
+      ...verify(payload, txId),
       txId,
       confirmedAt,
+      blockHash: typeof payload.block_hash === "string" ? payload.block_hash : null,
+      blockHeight: typeof payload.block_height === "number" ? payload.block_height : null,
     };
   }
 
@@ -241,4 +266,39 @@ export async function syncTransaction(txId: string, expected: ExpectedTransactio
 
 export async function syncInvoiceCreationTx(txId: string, expected: ExpectedTransaction): Promise<TxSyncResult> {
   return syncTransaction(txId, expected);
+}
+
+export type OnchainInvoice = {
+  merchant: string;
+  recipient: string;
+  amountUnits: string;
+  currency: string;
+  createdAt: number;
+  expiresAt: number;
+  description: string;
+};
+
+/** Reads an invoice from the architecture contract. Returns null when it does not exist on-chain. */
+export async function readArchitectureInvoice(invoiceId: string): Promise<OnchainInvoice | null> {
+  const contractId = process.env.NEXT_PUBLIC_STACKPAY_ARCHITECTURE_CONTRACT_ID ?? "";
+  if (!contractId) throw new ApiError(503, "contract_not_configured", "The architecture contract is not configured.");
+  const payload = await callReadOnly(contractId, "get-invoice", [cvToHex(stringAsciiCV(invoiceId))]);
+  if (!payload.okay) throw new ApiError(503, "chain_unavailable", "The invoice could not be read from the chain.");
+  // (ok (some {…})) | (ok none)
+  const value = cvToValue(hexToCV(payload.result), true) as any;
+  const tuple = value?.value?.value ?? value?.value ?? null;
+  if (!tuple || typeof tuple !== "object" || !("merchant" in tuple)) return null;
+  const field = (name: string) => {
+    const entry = tuple[name];
+    return entry && typeof entry === "object" && "value" in entry ? entry.value : entry;
+  };
+  return {
+    merchant: String(field("merchant")),
+    recipient: String(field("recipient")),
+    amountUnits: String(field("amount")),
+    currency: String(field("currency")),
+    createdAt: Number(field("created-at")),
+    expiresAt: Number(field("expires-at")),
+    description: String(field("description") ?? ""),
+  };
 }

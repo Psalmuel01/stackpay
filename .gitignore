@@ -4,3 +4,6 @@
 .next
 node_modules
 .DS_Store
+packages/sdk/dist/
+.next-*
+*.tsbuildinfo

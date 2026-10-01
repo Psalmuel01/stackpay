@@ -22,11 +22,11 @@ beforeEach(() => {
   service.confirmPublicInvoiceCreation.mockResolvedValue(invoice);
 });
 it.each([
-  ["invoice read", () => invoiceRead(new Request("https://stackpay.test"), { params: { invoiceId: "INV_1" } })],
-  ["payment confirmation", () => paymentConfirm(post(), { params: { invoiceId: "INV_1" } })],
-  ["link read", () => linkRead(new Request("https://stackpay.test"), { params: { slug: "shop" } })],
-  ["link preparation", () => linkPrepare(post(), { params: { slug: "shop" } })],
-  ["link invoice confirmation", () => linkConfirm(post(), { params: { slug: "shop" } })],
+  ["invoice read", () => invoiceRead(new Request("https://stackpay.test"), { params: Promise.resolve({ invoiceId: "INV_1" }) })],
+  ["payment confirmation", () => paymentConfirm(post(), { params: Promise.resolve({ invoiceId: "INV_1" }) })],
+  ["link read", () => linkRead(new Request("https://stackpay.test"), { params: Promise.resolve({ slug: "shop" }) })],
+  ["link preparation", () => linkPrepare(post(), { params: Promise.resolve({ slug: "shop" }) })],
+  ["link invoice confirmation", () => linkConfirm(post(), { params: Promise.resolve({ slug: "shop" }) })],
 ] as const)("%s does not disclose private rows to an unauthenticated caller", async (_, handler) => {
   const response = await handler();
   expect(response.status).toBeLessThan(300);

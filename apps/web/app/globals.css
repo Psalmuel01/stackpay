@@ -157,6 +157,7 @@ html[data-theme="light"] {
    than restyling cards, buttons, and fields locally.
    ========================================================================== */
 @layer components {
+
   /* Surfaces ------------------------------------------------------------- */
   .card,
   .glass {
@@ -2028,3 +2029,92 @@ html[data-theme="light"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Editor-style code snippets (components/CodeBlock.tsx), in StackPay's theme colours.
+   Outside @layer so Tailwind keeps the runtime-built token classes (tok-*). */
+.code-block {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgb(var(--line));
+  border-radius: 12px;
+  background: rgb(var(--input));
+  box-shadow: var(--shadow-card);
+}
+.code-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid rgb(var(--line));
+  background: rgb(var(--subtle));
+}
+.code-block-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: rgb(var(--line-strong));
+}
+.code-block-dot:first-child {
+  background: rgb(var(--accent));
+}
+.code-block-title {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: rgb(var(--muted));
+}
+.code-block-copy {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgb(var(--muted));
+  transition: background-color 150ms, color 150ms;
+}
+.code-block-copy:hover {
+  background: rgb(var(--raised));
+  color: rgb(var(--fg));
+}
+.code-block pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 14px 0;
+  counter-reset: code-line;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: rgb(var(--fg));
+  tab-size: 2;
+}
+.code-block pre:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: -2px;
+}
+.code-block .code-line {
+  display: block;
+  min-width: max-content;
+  padding-right: 20px;
+}
+.code-block .code-line::before {
+  counter-increment: code-line;
+  content: counter(code-line);
+  display: inline-block;
+  width: 2.5ch;
+  margin: 0 16px 0 14px;
+  text-align: right;
+  color: rgb(var(--faint) / 0.55);
+  user-select: none;
+}
+.tok-keyword { color: rgb(var(--accent-text)); }
+.tok-string { color: rgb(var(--success)); }
+.tok-comment { color: rgb(var(--faint)); font-style: italic; }
+.tok-number { color: rgb(var(--warning)); }
+.tok-function { color: rgb(var(--info)); }
+.tok-property { color: rgb(var(--fg-2)); }
+.tok-flag { color: rgb(var(--info)); }
+.tok-variable { color: rgb(var(--warning)); }
+.tok-command { color: rgb(var(--accent-text)); font-weight: 600; }

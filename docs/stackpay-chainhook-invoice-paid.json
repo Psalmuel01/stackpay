@@ -8,6 +8,10 @@
       {
         "type": "contract_log",
         "contract_identifier": "ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.arch"
+      },
+      {
+        "type": "contract_log",
+        "contract_identifier": "ST1H7G0B7BBM991P2KA77R0XHDRNYCWH8H92TT4QN.proc"
       }
     ]
   },
@@ -22,6 +26,6 @@
   },
   "action": {
     "type": "http_post",
-    "url": "https://stackpay.vercel.app/api/webhooks/chainhooks"
+    "url": "https://<your-app-origin>/api/webhooks/chainhooks"
   }
 }

@@ -1,9 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, use } from "react";
+import { decimalToAtomic } from "@/lib/amounts";
 import { CircleAlert, CircleCheck, Link2Off, Minus, Plus } from "lucide-react";
 import ConnectWalletButton from "@/components/app/ConnectWalletButton";
-import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
+import { type Currency, formatCurrencyAmount } from "@/lib/format";
 import {
   AmountDisplay,
   CheckoutNotFound,
@@ -67,8 +68,10 @@ function isValidEmail(value: string) {
 export default function PublicPaymentLinkPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
+  // Next 15 passes route params as a Promise.
+  const { slug } = use(params);
   const router = useRouter();
   const [remoteLink, setRemoteLink] = useState<RemotePaymentLink | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(true);
@@ -80,6 +83,8 @@ export default function PublicPaymentLinkPage({
   const [email, setEmail] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const searchParams = useSearchParams();
+  const [prefilled, setPrefilled] = useState(false);
   // Presentation-only: which step of checkout the customer is in.
   const [phase, setPhase] = useState<"idle" | "signing" | "confirming">("idle");
 
@@ -95,7 +100,7 @@ export default function PublicPaymentLinkPage({
     let cancelled = false;
     setLoadingRemote(true);
 
-    fetch(`/api/payment-links/public/${params.slug}`, { cache: "no-store" })
+    fetch(`/api/payment-links/public/${slug}`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           return null;
@@ -117,7 +122,7 @@ export default function PublicPaymentLinkPage({
     return () => {
       cancelled = true;
     };
-  }, [params.slug]);
+  }, [slug]);
 
   const availableCurrencies = remoteLink?.accepted_currencies ?? [];
   const suggestedAmounts = useMemo(
@@ -136,9 +141,24 @@ export default function PublicPaymentLinkPage({
 
     const initialCurrency = (availableCurrencies[0] ?? remoteLink.default_currency ?? "sBTC") as Currency;
     const defaults = defaultAmountConfig(initialCurrency);
+    // Universal links accept a prefilled amount (for example from Counter Mode's per-sale QR).
+    const requestedCurrency = searchParams.get("currency") as Currency | null;
+    const requestedAmount = searchParams.get("amount");
+    if (remoteLink.is_universal && requestedCurrency && availableCurrencies.includes(requestedCurrency) && requestedAmount) {
+      try {
+        if (decimalToAtomic(requestedAmount, requestedCurrency) > 0n) {
+          setSelectedCurrency(requestedCurrency);
+          setAmount(requestedAmount);
+          setPrefilled(true);
+          return;
+        }
+      } catch {
+        // Ignore an invalid prefill and fall back to the link's defaults.
+      }
+    }
     setSelectedCurrency(initialCurrency);
     setAmount(String(suggestedAmounts[0] ?? remoteLink.default_amount ?? defaults.defaultAmount));
-  }, [availableCurrencies, remoteLink, suggestedAmounts]);
+  }, [availableCurrencies, remoteLink, suggestedAmounts, searchParams]);
 
   const amountStep = remoteLink?.amount_step ?? defaultAmountConfig(selectedCurrency).amountStep;
   const merchantName =
@@ -188,7 +208,7 @@ export default function PublicPaymentLinkPage({
     setPhase("signing");
 
     try {
-      const response = await fetch(`/api/payment-links/public/${params.slug}/invoices`, {
+      const response = await fetch(`/api/payment-links/public/${slug}/invoices`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -221,7 +241,7 @@ export default function PublicPaymentLinkPage({
           try {
             for (let attempt = 0; attempt < 20; attempt += 1) {
               const confirmResponse = await fetch(
-                `/api/payment-links/public/${params.slug}/invoices/confirm`,
+                `/api/payment-links/public/${slug}/invoices/confirm`,
                 {
                   method: "POST",
                   headers: {
@@ -351,6 +371,7 @@ export default function PublicPaymentLinkPage({
             <p className="mt-1 text-sm text-muted">{pageSummary}</p>
 
             {remoteLink.is_universal ? (
+              <>
               <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
@@ -389,6 +410,8 @@ export default function PublicPaymentLinkPage({
                   <Plus size={18} aria-hidden="true" />
                 </button>
               </div>
+              {prefilled ? <p className="hint mt-2 text-sm">Amount entered by {merchantName}. Check it before you pay.</p> : null}
+              </>
             ) : isSuggestedMultipay ? (
               <div className="mt-4 flex flex-wrap gap-2" role="group" aria-labelledby="amount-label">
                 {suggestedAmounts.map((suggestedAmount) => (

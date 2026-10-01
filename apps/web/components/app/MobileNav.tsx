@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Plus, Link2, Menu, QrCode, ArrowDownToLine, Settings2, BookOpen, ExternalLink } from "lucide-react";
+import { LayoutDashboard, FileText, Plus, Link2, Menu, QrCode, ArrowDownToLine, Settings2, BookOpen, ExternalLink, Code2 } from "lucide-react";
 import { isActive } from "./navigation";
 
 const dock = [
@@ -16,6 +16,7 @@ const more = [
   { label: "Universal QR", href: "/qr-link", icon: QrCode },
   { label: "Settlements", href: "/settlements", icon: ArrowDownToLine },
   { label: "Merchant profile", href: "/profile", icon: Settings2 },
+  { label: "Developer", href: "/developer", icon: Code2 },
   { label: "Documentation", href: "/docs", icon: BookOpen },
   { label: "Back to website", href: "/", icon: ExternalLink },
 ];

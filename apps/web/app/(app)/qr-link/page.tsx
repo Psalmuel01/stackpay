@@ -13,6 +13,7 @@ import {
   QrCode,
   RefreshCw,
   ScanLine,
+  Store,
   UserRound,
   Wallet,
 } from "lucide-react";
@@ -504,8 +505,12 @@ export default function QrLinkPage() {
                 Open checkout
                 <ArrowUpRight size={16} aria-hidden="true" />
               </a>
+              <Link href="/qr-link/counter" className="btn btn-secondary w-full sm:w-auto">
+                <Store size={17} aria-hidden="true" />
+                Counter Mode
+              </Link>
             </div>
-            <p className="hint">PNG is best for sharing and screens. SVG stays sharp at any print size.</p>
+            <p className="hint">PNG is best for sharing and screens. SVG stays sharp at any print size. Counter Mode turns a tablet or laptop into a till: enter the amount, the customer scans, and payments confirm live.</p>
             {downloadError ? (
               <div className="alert alert-danger mt-4" role="alert">
                 {downloadError}

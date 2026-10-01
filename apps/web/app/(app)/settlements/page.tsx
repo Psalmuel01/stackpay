@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowDownToLine, ArrowUpRight, CheckCircle2, History, Loader2, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
 import TokenLogo from "@/components/TokenLogo";
-import { type Currency, formatCurrencyAmount, formatDateTime } from "@/components/app/DemoProvider";
+import { currencyDecimals, decimalToAtomic, formatDecimalAmount } from "@/lib/amounts";
+import { type Currency, formatCurrencyAmount, formatDateTime } from "@/lib/format";
 import { getConnectedWalletAddress, submitContractIntent, type StackPayContractIntent } from "@/lib/stacks";
 
 type SettlementDashboardResponse = {
@@ -16,7 +17,8 @@ type SettlementDashboardResponse = {
     slug?: string;
     settlement_wallet?: string | null;
   } | null;
-  processorBalances: Record<Currency, number>;
+  /** Exact decimal strings; null when the chain could not be read. */
+  processorBalances: Record<Currency, string> | null;
   settlementRuns: Array<{
     id: string;
     tx_id: string;
@@ -37,8 +39,8 @@ const assets: Array<{ currency: Currency; description: string }> = [
   { currency: "USDCx", description: "US dollar-backed" },
 ];
 
-function formatAmount(amount: number, currency: Currency) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: currency === "sBTC" ? 8 : 6 }).format(amount);
+function formatAmount(amount: string | null | undefined, currency: Currency) {
+  return amount == null ? "Unavailable" : formatDecimalAmount(amount, currency);
 }
 
 function sanitizeDecimalInput(value: string) {
@@ -132,7 +134,10 @@ export default function SettlementsPage() {
     };
   }, [walletAddress]);
 
-  const availableBalance = useMemo(() => dashboard?.processorBalances?.[currency] ?? 0, [currency, dashboard]);
+  const availableBalance = useMemo(() => dashboard?.processorBalances?.[currency] ?? null, [currency, dashboard]);
+  const hasBalance = useMemo(() => {
+    try { return availableBalance !== null && decimalToAtomic(availableBalance, currency) > 0n; } catch { return false; }
+  }, [availableBalance, currency]);
 
   async function reloadSettlements() {
     if (!walletAddress) {
@@ -155,9 +160,10 @@ export default function SettlementsPage() {
       return;
     }
 
-    const numericAmount = Number(amount || 0);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setError("Enter a valid settlement amount.");
+    let validAmount = false;
+    try { validAmount = decimalToAtomic(amount || "0", currency) > 0n; } catch { validAmount = false; }
+    if (!validAmount) {
+      setError(`Enter a valid amount (up to ${currencyDecimals[currency]} decimal places).`);
       setSuccessMessage(null);
       return;
     }
@@ -181,7 +187,7 @@ export default function SettlementsPage() {
         body: JSON.stringify({
           walletAddress,
           currency,
-          amount: numericAmount,
+          amount,
           destination,
         }),
       });
@@ -323,6 +329,12 @@ export default function SettlementsPage() {
           Available balances
         </h2>
 
+        {dashboard && dashboard.processorBalances === null && (
+          <div className="alert alert-warning mb-4" role="status">
+            Balances can’t be read from the Stacks network right now. Your funds are unaffected; withdrawals are paused until balances load. Try again shortly.
+          </div>
+        )}
+
         {/* Mobile: one stacked list */}
         <div className="card overflow-hidden sm:hidden">
           <ul className="divide-y divide-line">
@@ -335,7 +347,7 @@ export default function SettlementsPage() {
                 </div>
                 <div className="ml-auto text-right">
                   <div className="text-lg font-semibold tabular-nums text-fg">
-                    {formatAmount(dashboard?.processorBalances?.[item] ?? 0, item)}
+                    {formatAmount(dashboard?.processorBalances?.[item], item)}
                   </div>
                   <div className="text-xs text-muted">available</div>
                 </div>
@@ -354,7 +366,7 @@ export default function SettlementsPage() {
                 <span className="ml-auto text-sm text-muted">{description}</span>
               </div>
               <div className="stat-value mt-5">
-                {formatAmount(dashboard?.processorBalances?.[item] ?? 0, item)}
+                {formatAmount(dashboard?.processorBalances?.[item], item)}
                 <span className="ml-1.5 text-base font-medium tracking-normal text-muted">{item}</span>
               </div>
               <div className="mt-1 text-sm text-muted">Available to withdraw</div>
@@ -405,7 +417,7 @@ export default function SettlementsPage() {
                   Amount
                 </label>
                 <span className="text-sm text-muted">
-                  <span className="tabular-nums">{formatCurrencyAmount(availableBalance, currency)}</span> available
+                  <span className="tabular-nums">{formatAmount(availableBalance, currency)} {currency}</span> available
                 </span>
               </div>
               <div className="relative">
@@ -424,8 +436,8 @@ export default function SettlementsPage() {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm !min-h-[32px] !px-2.5 text-accent-text"
-                    onClick={() => setAmount(String(availableBalance))}
-                    disabled={availableBalance <= 0}
+                    onClick={() => availableBalance !== null && setAmount(availableBalance)}
+                    disabled={!hasBalance}
                   >
                     Max
                   </button>
@@ -471,7 +483,7 @@ export default function SettlementsPage() {
             ) : null}
 
             <div className="border-t border-line pt-5">
-              <button type="submit" disabled={submitting} className="btn btn-primary w-full sm:w-auto">
+              <button type="submit" disabled={submitting || !dashboard?.processorBalances} className="btn btn-primary w-full sm:w-auto">
                 <ArrowDownToLine size={17} aria-hidden="true" />
                 {submitting ? "Withdrawing…" : "Withdraw funds"}
               </button>

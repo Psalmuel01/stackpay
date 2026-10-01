@@ -4,7 +4,7 @@ import { walletChallengeMessage } from "../lib/server/wallet-auth";
 import { hashMessage } from "@stacks/encryption";
 import { NextRequest } from "next/server";
 const db = vi.hoisted(() => ({ selectRows: vi.fn(), supabaseRequest: vi.fn() }));
-const service = vi.hoisted(() => ({ confirmInvoiceCreation: vi.fn(), confirmSettlementWithdrawal: vi.fn(), getOwnedPaymentLinkIntent: vi.fn(), confirmPaymentLinkChain: vi.fn(), upsertMerchantProfile: vi.fn(), getMerchantProfileByWallet: vi.fn(), processChainhookInvoicePaidEvent: vi.fn() }));
+const service = vi.hoisted(() => ({ confirmInvoiceCreation: vi.fn(), confirmSettlementWithdrawal: vi.fn(), getOwnedPaymentLinkIntent: vi.fn(), confirmPaymentLinkChain: vi.fn(), upsertMerchantProfile: vi.fn(), getMerchantProfileByWallet: vi.fn(), }));
 vi.mock("../lib/server/supabase-admin", () => ({ ...db, isSupabaseConfigured: () => true }));
 vi.mock("../lib/server/stackpay-service", () => service);
 import { POST as confirmInvoice } from "../app/api/invoices/confirm/route";
@@ -79,13 +79,13 @@ describe("confirmation routes", () => {
     expect(service.confirmInvoiceCreation).not.toHaveBeenCalled();
   });
   it("does not accept a supplied link id without chain verification", async () => {
-    const response = await confirmLink(request("/api/payment-links/id/chain", { onchainLinkId: "LNK_fake" }), { params: { paymentLinkId: "id" } });
+    const response = await confirmLink(request("/api/payment-links/id/chain", { onchainLinkId: "LNK_fake" }), { params: Promise.resolve({ paymentLinkId: "id" }) });
     expect(response.status).toBe(400); expect(service.confirmPaymentLinkChain).not.toHaveBeenCalled();
   });
   it("checks link ownership and does not update a pending link", async () => {
     service.getOwnedPaymentLinkIntent.mockResolvedValue({ contractId: architecture, functionName: "create-multipay-link", network: "testnet", arguments: [], sender: wallet });
     fetchMock.mockResolvedValue(Response.json({ tx_status: "pending" }));
-    expect((await confirmLink(request("/api/payment-links/id/chain", { txId }), { params: { paymentLinkId: "id" } })).status).toBe(200);
+    expect((await confirmLink(request("/api/payment-links/id/chain", { txId }), { params: Promise.resolve({ paymentLinkId: "id" }) })).status).toBe(200);
     expect(service.getOwnedPaymentLinkIntent).toHaveBeenCalledWith("id", wallet);
     expect(service.confirmPaymentLinkChain).not.toHaveBeenCalled();
   });
@@ -98,9 +98,10 @@ describe("authentication lifecycle", () => {
     const message = original.split("\n").map(line => line.startsWith(field + ":") ? replacement : line).join("\n");
     db.selectRows.mockResolvedValue([{ wallet_address: wallet, message }]);
     const signature = signMessageHashRsv({ privateKey, messageHash: Buffer.from(hashMessage(message)).toString("hex") });
+    db.supabaseRequest.mockResolvedValue(true);
     const response = await verify(request("/api/auth/verify", { signature, publicKey }, { cookie: "stackpay-challenge=" + "b".repeat(64) }));
     expect(response.status).toBe(401);
-    expect(db.supabaseRequest).not.toHaveBeenCalled();
+    expect(db.supabaseRequest).not.toHaveBeenCalledWith("rpc/consume_wallet_challenge", expect.anything());
   });
   it.each([null, [], "wallet", 7])("rejects non-object auth bodies", async body => {
     expect((await issue(request("/api/auth/challenge", body))).status).toBe(400);
@@ -128,19 +129,39 @@ describe("authentication lifecycle", () => {
   });
   it("rejects an expired challenge before attempting consumption", async () => {
     db.selectRows.mockResolvedValue([]);
+    db.supabaseRequest.mockResolvedValue(true);
     expect((await verify(request("/api/auth/verify", {}, { cookie: "stackpay-challenge=" + "b".repeat(64) }))).status).toBe(401);
-    expect(db.supabaseRequest).not.toHaveBeenCalled();
+    expect(db.supabaseRequest).not.toHaveBeenCalledWith("rpc/consume_wallet_challenge", expect.anything());
   });
   it("creates a session once and refuses a replay that loses atomic consumption", async () => {
     const message = walletChallengeMessage(request("/api/auth/verify", {}), wallet, "b".repeat(64));
     db.selectRows.mockResolvedValue([{ wallet_address: wallet, message }]);
     const signature = signMessageHashRsv({ privateKey, messageHash: Buffer.from(hashMessage(message)).toString("hex") });
-    db.supabaseRequest.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    let consumptions = 0;
+    db.supabaseRequest.mockImplementation(async (path: string) => path === "rpc/consume_wallet_challenge" ? ++consumptions === 1 : true);
     const headers = { cookie: "stackpay-challenge=" + "b".repeat(64) };
     const accepted = await verify(request("/api/auth/verify", { signature, publicKey }, headers));
     expect(accepted.status).toBe(200); expect(accepted.headers.get("set-cookie")).toContain("stackpay-session=");
     const replayed = await verify(request("/api/auth/verify", { signature, publicKey }, headers));
     expect(replayed.status).toBe(401); expect(replayed.headers.get("set-cookie")).toBeNull();
+    expect(db.supabaseRequest).toHaveBeenCalledWith("rpc/consume_wallet_challenge", expect.objectContaining({ body: expect.objectContaining({ p_audience: `${origin}|testnet` }) }));
+  });
+  it("throttles sign-in attempts per client address", async () => {
+    db.supabaseRequest.mockImplementation(async (path: string) => path !== "rpc/take_rate_limit");
+    const response = await issue(request("/api/auth/challenge", { walletAddress: wallet }, { "x-forwarded-for": "203.0.113.9" }));
+    expect(response.status).toBe(429);
+    expect(db.supabaseRequest).toHaveBeenCalledWith("rpc/take_rate_limit", expect.objectContaining({ body: expect.objectContaining({ p_key: "auth-challenge:203.0.113.9" }) }));
+    expect(db.supabaseRequest).not.toHaveBeenCalledWith("rpc/issue_wallet_challenge", expect.anything());
+  });
+  it("only accepts sessions issued for this origin and network", async () => {
+    await getProfile(new NextRequest(origin + "/api/merchant/profile", { headers: { cookie } })).catch(() => null);
+    expect(db.selectRows).toHaveBeenCalledWith("wallet_sessions", expect.objectContaining({ audience: `eq.${origin}|testnet` }));
+  });
+  it("signs out everywhere on request", async () => {
+    db.supabaseRequest.mockResolvedValue(1);
+    const response = await logout(new Request(origin + "/api/auth/session?scope=all", { method: "DELETE", headers: { origin, cookie } }));
+    expect(response.status).toBe(200);
+    expect(db.supabaseRequest).toHaveBeenCalledWith("rpc/revoke_wallet_sessions", { method: "POST", body: { p_wallet: wallet } });
   });
   it("revokes the server-side session on logout", async () => {
     const response = await logout(new Request(origin + "/api/auth/session", { method: "DELETE", headers: { origin, cookie } }));
@@ -153,6 +174,6 @@ describe("webhook secret", () => {
   it.each(["", "configured-secret"])("rejects unauthenticated deliveries when secret is %s", async secret => {
     vi.stubEnv("STACKPAY_CHAINHOOK_SECRET", secret);
     expect((await webhook(request("/api/webhooks/chainhooks", {}))).status).toBe(401);
-    expect(service.processChainhookInvoicePaidEvent).not.toHaveBeenCalled();
+    expect(db.supabaseRequest).not.toHaveBeenCalled();
   });
 });

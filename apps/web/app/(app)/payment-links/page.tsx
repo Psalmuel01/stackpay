@@ -4,7 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, Copy, ExternalLink, Link2, Plus, Wallet } from "lucide-react";
 import PageHeader from "@/components/app/PageHeader";
-import { type Currency, formatCurrencyAmount } from "@/components/app/DemoProvider";
+import { type Currency, formatCurrencyAmount } from "@/lib/format";
 import { getConnectedWalletAddress } from "@/lib/stacks";
 
 type PaymentLinkRecord = {

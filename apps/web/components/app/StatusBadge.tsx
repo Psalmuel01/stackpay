@@ -14,6 +14,7 @@ const tones: Record<string, string> = {
   Expired: "badge-neutral",
   Archived: "badge-neutral",
   Canceled: "badge-neutral",
+  Refunded: "badge-neutral",
   Failed: "badge-danger",
 };
 

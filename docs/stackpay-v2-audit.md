@@ -220,3 +220,21 @@ The bounded identity/privacy patch is implemented locally: shared auth object-bo
 Validation: 132 web/security tests pass (including every merchant mutation's missing/revoked session, mismatched wallet, and wrong origin; public route privacy; actual PDF contact-data redaction; real-signature context mismatch). Six existing simnet contract tests pass. TypeScript and production build pass. These tests use mocked chain/database responses except simnet; this run did not execute the SQL suite against a fresh PostgreSQL instance or prove hosted RLS/deployment state. Baseline tables/RPC migration must already be applied; this patch introduces no new schema migration.
 
 Open: P0-01 is not fully closed—explicit session audience storage, global abuse controls, revoke-all, and full customer receipt capabilities remain. All chain reliability, deployment, framework, API/key/idempotency/outgoing webhook, SDK and pilot release gates remain open. No push, contract transaction, database migration, or production deployment was performed.
+
+## Status of the executive findings — 2026-09-30
+
+The findings above describe the audit baseline and are kept as written. Their resolution on `v2/core-infrastructure`:
+
+1. **Authentication.** Kept as is and extended: sessions are bound to their audience, can be revoked on all devices, and sign-in is rate-limited.
+2. **Public data disclosure.** Fixed. Public reads return allowlisted fields only, and public PDFs omit contact data.
+3. **Chainhook ingestion.** Replaced with a durable inbox:
+   - events are processed only after they are stored;
+   - processing is atomic and idempotent;
+   - rollbacks are real, and failures are retried or dead-lettered.
+4. **Deployment isolation.** Every chain record is bound to its deployment, and payments are verified against the invoice's own processor. Deployment-scoped uniqueness is deferred until a second deployment exists (see `stackpay-deployment-registry.md`).
+5. **API signing.** Resolved with drafts. The customer's wallet creates the invoice on-chain through the merchant's pre-authorized Universal link, so no server key ever signs for a merchant.
+6. **Processor value.** [ADR 0001](adr/0001-settlement-model.md) makes direct settlement the default; `proc` is kept for existing balances.
+7. **Developer features.** Real `/api/v1`, keys, idempotency, signed webhooks, reconciliation and an SDK that targets it.
+8. **Accounting.** Amounts are exact strings and bigints, static fiat rates are gone, and failed chain reads report unavailable instead of zero.
+
+The live-deployment blocker in the verification appendix was resolved by the September 28 redeployment, and that pair is now in the registry. Still outside this audit's reach: an independent contract security review, hosted database verification, and merchant pilots.

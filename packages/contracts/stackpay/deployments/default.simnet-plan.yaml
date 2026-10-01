@@ -69,6 +69,11 @@ plan:
       path: contracts/architecture.clar
       clarity-version: 4
     - transaction-type: emulated-contract-publish
+      contract-name: direct
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/direct-processor.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
       contract-name: proc
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/processor.clar

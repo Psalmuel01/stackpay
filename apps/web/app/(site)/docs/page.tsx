@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import Footer from "@/components/Footer";
+import CodeBlock from "@/components/CodeBlock";
 
 const topics = [
   {
@@ -44,7 +45,13 @@ const topics = [
     id: "qr",
     title: "Universal QR",
     group: "Accept payments",
-    keywords: "scan customer amount",
+    keywords: "scan customer amount counter mode",
+  },
+  {
+    id: "refunds",
+    title: "Refunds",
+    group: "Accept payments",
+    keywords: "refund return partial payer",
   },
   {
     id: "settlements",
@@ -62,7 +69,13 @@ const topics = [
     id: "api",
     title: "API reference",
     group: "Build & operate",
-    keywords: "routes endpoints sdk integration",
+    keywords: "routes endpoints sdk integration keys idempotency pagination errors",
+  },
+  {
+    id: "webhooks",
+    title: "Webhooks",
+    group: "Build & operate",
+    keywords: "events signature hmac retries replay",
   },
   {
     id: "security",
@@ -77,91 +90,35 @@ const topics = [
     keywords: "database supabase error connection expired",
   },
 ];
+/** Public v1 API. Every route authenticates with a secret key carrying the listed scope. */
 const routes = [
-  [
-    "POST",
-    "/api/auth/challenge",
-    "Origin",
-    "Issue a five-minute sign-in challenge.",
-  ],
-  [
-    "POST",
-    "/api/auth/verify",
-    "Challenge cookie",
-    "Verify the signed message and create a session.",
-  ],
-  [
-    "GET",
-    "/api/auth/session",
-    "Session if present",
-    "Read the current authenticated wallet.",
-  ],
-  [
-    "DELETE",
-    "/api/auth/session",
-    "Session + origin",
-    "Revoke the current session.",
-  ],
-  [
-    "GET / POST",
-    "/api/merchant/profile",
-    "Merchant",
-    "Read or update your merchant profile.",
-  ],
-  [
-    "GET / POST",
-    "/api/invoices",
-    "Merchant",
-    "List invoices or prepare a creation transaction.",
-  ],
-  [
-    "POST",
-    "/api/invoices/confirm",
-    "Merchant",
-    "Verify on-chain creation and persist the invoice.",
-  ],
-  [
-    "GET / POST",
-    "/api/payment-links",
-    "Merchant",
-    "List or prepare reusable payment links.",
-  ],
-  [
-    "GET",
-    "/api/payment-links/public/[slug]",
-    "Public",
-    "Read the public checkout details.",
-  ],
-  [
-    "GET / POST",
-    "/api/qr-link",
-    "Merchant",
-    "Read or prepare the universal QR route.",
-  ],
-  [
-    "GET / POST",
-    "/api/settlements",
-    "Merchant",
-    "Read settlement data or prepare a withdrawal.",
-  ],
-  [
-    "POST",
-    "/api/settlements/confirm",
-    "Merchant",
-    "Verify a withdrawal transaction.",
-  ],
-  [
-    "GET / PATCH",
-    "/api/notifications",
-    "Merchant",
-    "Read or mark merchant notifications.",
-  ],
-  [
-    "POST",
-    "/api/webhooks/chainhooks",
-    "Webhook secret",
-    "Receive configured Chainhook events.",
-  ],
+  ["POST", "/api/v1/invoices", "invoices:write", "Create a draft invoice and get its hosted checkout URL."],
+  ["GET", "/api/v1/invoices", "invoices:read", "List invoices, newest first; filter with ?status=."],
+  ["GET", "/api/v1/invoices/{id}", "invoices:read", "Retrieve an invoice with its confirmed payment."],
+  ["POST", "/api/v1/invoices/{id}/cancel", "invoices:write", "Cancel a draft before the customer creates it on-chain."],
+  ["POST", "/api/v1/payment-links", "payment_links:write", "Create a MultiPay link draft (activated in the console)."],
+  ["GET", "/api/v1/payment-links[/{id}]", "payment_links:read", "List or retrieve payment links."],
+  ["GET", "/api/v1/receipts[/{id}]", "receipts:read", "List or retrieve payment receipts."],
+  ["GET", "/api/v1/refunds[/{id}]", "refunds:read", "List or retrieve verified refunds."],
+  ["GET", "/api/v1/settlements[/{id}]", "settlements:read", "List or retrieve withdrawals (read-only)."],
+  ["GET", "/api/v1/events[/{id}]", "events:read", "List or retrieve events; filter with ?type=."],
+  ["GET / POST", "/api/v1/webhook-endpoints", "webhooks:read / write", "List or register endpoints (secret shown once)."],
+  ["GET / PATCH / DELETE", "/api/v1/webhook-endpoints/{id}", "webhooks:read / write", "Read, update, or remove an endpoint."],
+  ["POST", "/api/v1/webhook-endpoints/{id}/rotate-secret", "webhooks:write", "Issue a new signing secret."],
+  ["POST", "/api/v1/webhook-endpoints/{id}/test", "webhooks:write", "Send a signed stackpay.ping."],
+  ["GET", "/api/v1/webhook-deliveries[/{id}]", "webhooks:read", "Delivery history with attempts and responses."],
+  ["POST", "/api/v1/webhook-deliveries/{id}/replay", "webhooks:write", "Re-send a delivery as a new attempt."],
+  ["GET", "/api/v1/reports/reconciliation", "invoices:read", "Stream the reconciliation CSV (?from=&to=&status=)."],
+];
+const eventTypes = [
+  ["invoice.created", "An invoice exists (API drafts included)."],
+  ["invoice.pending", "A draft was created on-chain at checkout and can be paid."],
+  ["invoice.paid", "Payment confirmed on-chain. Fulfil on this event."],
+  ["invoice.payment_reverted", "The block with the payment was reorganized away. Stop treating the invoice as paid until invoice.paid arrives again."],
+  ["invoice.expired", "The invoice can no longer be paid."],
+  ["invoice.canceled", "A draft was canceled."],
+  ["invoice.refunded", "A verified refund was sent to the original payer; data.object.refund has the amount and transaction."],
+  ["settlement.confirmed", "A withdrawal to your wallet confirmed on-chain."],
 ];
 function Note({
   children,
@@ -172,11 +129,9 @@ function Note({
 }) {
   const Icon = tone === "warning" ? AlertTriangle : Info;
   return (
-    <div
-      className={`alert my-6 text-base leading-7 ${tone === "warning" ? "alert-warning" : ""}`}
-    >
+    <div className={`alert my-5 text-sm leading-6 ${tone === "warning" ? "alert-warning" : ""}`}>
       <Icon
-        size={18}
+        size={16}
         aria-hidden="true"
         className={`mt-1 shrink-0 ${tone === "warning" ? "" : "text-muted"}`}
       />
@@ -464,6 +419,36 @@ export default function DocsPage() {
                   "Confirm the payment in your merchant records before treating the sale as complete.",
                 ]}
               />
+              <p>
+                <strong className="font-semibold text-fg">Counter Mode</strong>{" "}
+                turns a tablet or spare screen into a till: key in the amount,
+                show a QR prefilled with it, and hear a chime when the payment
+                confirms. Open it from Universal QR. Hand over goods only after
+                the payment shows as confirmed in the feed.
+              </p>
+            </Section>
+            <Section id="refunds">
+              <p>
+                Refund a paid invoice in full or in part from{" "}
+                <Link className="link" href="/invoices">Invoices</Link>. The
+                refund is an ordinary transfer from your wallet back to the
+                wallet that paid, so you approve it in your wallet like any
+                other transaction.
+              </p>
+              <Steps
+                items={[
+                  "Choose Refund on a paid invoice and enter the amount. You can refund up to what was paid, less earlier refunds.",
+                  "Approve the transfer in your wallet. It is limited by a post-condition to exactly that amount, and tagged with the invoice id.",
+                  "StackPay records the refund only after it verifies the confirmed transfer on-chain: sender, payer, asset, amount, and tag.",
+                ]}
+              />
+              <Note>
+                A full refund marks the invoice Refunded. Each refund sends{" "}
+                <Code>invoice.refunded</Code> to your webhooks, and refunds
+                appear in the reconciliation export and at{" "}
+                <Code>/api/v1/refunds</Code>. Refunds are paid from your wallet,
+                not from the processor balance, so withdraw first if needed.
+              </Note>
             </Section>
             <Section id="settlements">
               <p>
@@ -490,11 +475,7 @@ export default function DocsPage() {
                         ],
                         [
                           "Payment volume",
-                          "Recorded payments over the displayed period; not the amount available to withdraw.",
-                        ],
-                        [
-                          "USD estimate",
-                          "A display conversion. Current demo conversion rates are not a live market quote or an accounting valuation.",
+                          "Recorded payments over the displayed period, per asset and exact to the token’s decimals; not the amount available to withdraw. StackPay shows no fiat valuations.",
                         ],
                         [
                           "Settlement",
@@ -545,24 +526,71 @@ export default function DocsPage() {
             </Section>
             <Section id="api">
               <p>
-                The active API lives in the Next.js application. These are
-                application routes, not a versioned public integration contract.
-                Merchant requests require wallet authentication; mutations also
-                require the matching app origin.
+                The versioned API lives at <Code>/api/v1</Code> on your StackPay
+                origin. Create a secret key in{" "}
+                <Link className="link" href="/developer">Developer</Link> and
+                send it as a bearer token. Keys are shown once, stored only as a
+                hash, carry scopes, and are bound to the deployment’s network:{" "}
+                <Code>sk_test_…</Code> works only on testnet and{" "}
+                <Code>sk_live_…</Code> only on mainnet.
               </p>
-              <Note>
-                The SDK package is scaffolding. There is no supported public
-                API-key onboarding flow or production SDK quickstart yet. Use
-                the application for payments and consult the route source when
-                developing inside this repository.
-              </Note>
-              <h3 className="pt-2 text-lg font-semibold text-fg">
-                Example: read the signed-in session
-              </h3>
-              <pre className="overflow-x-auto rounded-xl border border-line bg-subtle p-5 font-mono text-[13.5px] leading-6 text-fg-2">
-                <code>{`// Run inside the StackPay application origin.\nconst response = await fetch("/api/auth/session", {\n  credentials: "same-origin",\n  cache: "no-store",\n});\nconst result = await response.json();\nif (!response.ok) throw new Error(result.error.message);\nconsole.log(result.data.walletAddress);`}</code>
-              </pre>
-              <h3 className="pt-2 text-lg font-semibold text-fg">Core routes</h3>
+              <CodeBlock lang="bash" title="cURL" code={`curl https://<your-stackpay-origin>/api/v1/invoices \\
+  -H "Authorization: Bearer $STACKPAY_SECRET_KEY" \\
+  -H "Idempotency-Key: order-382" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "amount": "25",
+    "currency": "USDCx",
+    "description": "Order #382",
+    "metadata": { "order_id": "382" },
+    "success_url": "https://shop.example/orders/382"
+  }'`} />
+              <p>
+                The response is a <Code>draft</Code> invoice with a{" "}
+                <Code>checkout_url</Code>. Send the customer there: their
+                wallet creates the invoice on-chain (<Code>pending</Code>) and
+                pays it (<Code>paid</Code>). No merchant signature is needed
+                per invoice; set up Universal QR once in the console. Fulfil
+                the order on the <Code>invoice.paid</Code> webhook, never on
+                arrival at <Code>success_url</Code>.
+              </p>
+              <h3 className="pt-2 text-lg font-semibold text-fg">Conventions</h3>
+              <ul className="list-disc space-y-3 pl-5 marker:text-faint">
+                <li>
+                  <strong className="font-semibold text-fg">Money</strong> is an
+                  exact decimal string (<Code>amount</Code>) plus base units
+                  (<Code>amount_units</Code>: 6 decimals for STX and USDCx, 8
+                  for sBTC). Send amounts as strings.
+                </li>
+                <li>
+                  <strong className="font-semibold text-fg">Idempotency:</strong>{" "}
+                  send an <Code>Idempotency-Key</Code> on writes. A retry with
+                  the same key and body returns the original response for 24
+                  hours; the same key with a different body is rejected.
+                </li>
+                <li>
+                  <strong className="font-semibold text-fg">Errors</strong> look
+                  like <Code>{`{ error: { type, code, message, param?, request_id } }`}</Code>.
+                  Quote the <Code>request_id</Code> when asking for help.
+                </li>
+                <li>
+                  <strong className="font-semibold text-fg">Pagination:</strong>{" "}
+                  lists return <Code>{`{ object: "list", data, has_more, next_cursor }`}</Code>;
+                  pass <Code>starting_after=next_cursor</Code> and{" "}
+                  <Code>limit</Code> (1–100, default 20).
+                </li>
+                <li>
+                  <strong className="font-semibold text-fg">Rate limit:</strong>{" "}
+                  100 requests per 10 seconds per key. Back off on 429.
+                </li>
+                <li>
+                  <strong className="font-semibold text-fg">Metadata:</strong>{" "}
+                  up to 50 string keys (key ≤ 40 characters, value ≤ 500).
+                  Payment links copy their metadata, such as a SKU, onto every
+                  invoice bought through them.
+                </li>
+              </ul>
+              <h3 className="pt-2 text-lg font-semibold text-fg">Endpoints</h3>
               <div className="card overflow-hidden">
                 <ul className="divide-y divide-line sm:hidden">
                   {routes.map(([method, path, access, purpose]) => (
@@ -579,11 +607,11 @@ export default function DocsPage() {
                 <div className="hidden overflow-x-auto sm:block">
                   <table className="data-table">
                     <caption className="sr-only">
-                      Core API routes and authentication requirements
+                      API v1 endpoints and required scopes
                     </caption>
                     <thead>
                       <tr>
-                        {["Method and path", "Access", "Purpose"].map((label) => (
+                        {["Method and path", "Scope", "Purpose"].map((label) => (
                           <th key={label} scope="col">
                             {label}
                           </th>
@@ -601,7 +629,7 @@ export default function DocsPage() {
                               {path}
                             </code>
                           </td>
-                          <td className="whitespace-nowrap align-top text-sm text-muted">
+                          <td className="whitespace-nowrap align-top font-mono text-xs text-muted">
                             {access}
                           </td>
                           <td className="min-w-[200px] align-top text-sm text-fg-2">
@@ -613,21 +641,90 @@ export default function DocsPage() {
                   </table>
                 </div>
               </div>
+              <h3 className="pt-2 text-lg font-semibold text-fg">TypeScript SDK</h3>
               <p>
-                Successful JSON responses use{" "}
-                <Code>{`{ data: … }`}</Code>; errors
-                use{" "}
-                <Code>{`{ error: { code, message } }`}</Code>. Handle 401 by signing in again, 429 by waiting before
-                retrying, and 503 as a service or configuration problem. Never
-                automatically repeat a wallet payment after an ambiguous
-                response.
+                <Code>@stackpay/sdk</Code> wraps the API with types, automatic
+                idempotency keys, safe retries, pagination helpers, and webhook
+                verification. It isn’t on npm yet; install it from the
+                repository’s <Code>packages/sdk</Code>.
               </p>
+              <CodeBlock lang="ts" title="server.ts" code={`import { StackPay } from "@stackpay/sdk";
+
+const stackpay = new StackPay({ secretKey: process.env.STACKPAY_SECRET_KEY!, baseUrl: "https://<your-stackpay-origin>" });
+const invoice = await stackpay.invoices.create({ amount: "25", currency: "USDCx", metadata: { order_id: "382" } });
+redirect(invoice.checkout_url);`} />
               <a
-                href="https://github.com/Psalmuel01/stackpay/tree/main/apps/web/app/api"
+                href="https://github.com/Psalmuel01/stackpay/tree/main/packages/sdk"
                 className="link inline-flex items-center gap-2"
               >
-                Browse all route implementations <ArrowUpRight size={16} aria-hidden="true" />
+                SDK reference <ArrowUpRight size={16} aria-hidden="true" />
               </a>
+            </Section>
+            <Section id="webhooks">
+              <p>
+                Register HTTPS endpoints in{" "}
+                <Link className="link" href="/developer">Developer</Link> or
+                through the API, and choose which events each receives. Every
+                delivery is a JSON event signed with the endpoint’s secret.
+              </p>
+              <div className="card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <caption className="sr-only">Webhook event types</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Event</th>
+                        <th scope="col">Meaning</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventTypes.map(([type, meaning]) => (
+                        <tr key={type}>
+                          <td className="whitespace-nowrap align-top font-mono text-[13.5px] text-fg">{type}</td>
+                          <td className="align-top text-sm text-fg-2">{meaning}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <h3 className="pt-2 text-lg font-semibold text-fg">Verify the signature</h3>
+              <p>
+                The <Code>X-StackPay-Signature</Code> header is{" "}
+                <Code>t=&lt;unix seconds&gt;,v1=&lt;hex&gt;</Code>, where{" "}
+                <Code>v1</Code> is HMAC-SHA256 of <Code>{"`${t}.${rawBody}`"}</Code>{" "}
+                with your endpoint secret. Compute it over the raw body before
+                parsing, compare in constant time, and reject timestamps more
+                than five minutes old.
+              </p>
+              <CodeBlock lang="ts" title="app/api/webhooks/stackpay/route.ts" code={`export async function POST(request: Request) {
+  const body = await request.text();
+  const event = stackpay.webhooks.constructEvent(body, request.headers.get("x-stackpay-signature"), process.env.STACKPAY_WEBHOOK_SECRET!);
+  if (event.type === "invoice.paid") await fulfil(event.data.object.metadata.order_id);
+  return new Response(null, { status: 200 });
+}`} />
+              <ul className="list-disc space-y-3 pl-5 marker:text-faint">
+                <li>
+                  Delivery is at least once. Deduplicate on the event{" "}
+                  <Code>id</Code> (also in <Code>X-StackPay-Event-Id</Code>).
+                </li>
+                <li>
+                  Respond with any 2xx within 10 seconds. Failures are retried
+                  after 1 minute, 5 minutes, 30 minutes, and 2 hours, then
+                  marked dead. A 410 response, or repeated failures, disables
+                  the endpoint.
+                </li>
+                <li>
+                  Replay any delivery from Developer or with{" "}
+                  <Code>POST /api/v1/webhook-deliveries/{"{id}"}/replay</Code>.
+                  Rotate a secret at any time; the old one stops working
+                  immediately.
+                </li>
+                <li>
+                  Endpoints must be public HTTPS URLs. Private and loopback
+                  addresses are refused, including after DNS resolution.
+                </li>
+              </ul>
             </Section>
             <Section id="security">
               <div className="alert text-base leading-7">
@@ -656,13 +753,20 @@ export default function DocsPage() {
                   anchored chain data.
                 </li>
                 <li>
-                  Durable reconciliation, complete reorg recovery, and
-                  production operating procedures remain open work.
+                  Chain events are processed through a durable queue with
+                  retries. Reorganized payments are rolled back and reported
+                  with <Code>invoice.payment_reverted</Code>; a refund already
+                  sent stays recorded, because the transfer really happened.
                 </li>
                 <li>
-                  Subscriptions, automated settlement, merchant email
-                  notifications, and a public SDK are not available as
-                  production features.
+                  Every chain record is bound to the contract deployment it
+                  came from, so a contract upgrade never re-points past
+                  invoices or payments.
+                </li>
+                <li>
+                  The contracts have not had an independent audit. The SDK is
+                  not yet on npm. Subscriptions and automated settlement are
+                  not offered.
                 </li>
                 <li>
                   Token availability and asset identifiers depend on the
@@ -697,11 +801,19 @@ export default function DocsPage() {
                   ],
                   [
                     "Sign-in fails only on the deployed site",
-                    "Verify that STACKPAY_APP_ORIGIN matches the exact HTTPS origin, and that the server database URL and key belong to the same project. Check the server error code without logging credentials or signed challenge contents.",
+                    "Verify that NEXT_PUBLIC_APP_URL (or STACKPAY_APP_ORIGIN, if set) matches the exact HTTPS origin, and that the server database URL and key belong to the same project. Check the server error code without logging credentials or signed challenge contents.",
                   ],
                   [
                     "Payment is pending or missing from the dashboard",
                     "Look up the transaction on the configured network. A submitted transaction is not a confirmed payment. Keep the transaction ID for investigation and do not pay again until its result is known.",
+                  ],
+                  [
+                    "API returns 401 or 403",
+                    "401 means the key is missing, unknown, revoked, expired, or for the other network (sk_test_ on testnet, sk_live_ on mainnet). 403 means the key lacks the route’s scope; create a key with that scope in Developer.",
+                  ],
+                  [
+                    "Webhooks aren’t arriving",
+                    "Open Developer → Webhooks and check the endpoint’s status and recent deliveries. Disabled endpoints show why. Send a test event, fix the endpoint, then replay the failed deliveries.",
                   ],
                 ].map(([title, body]) => (
                   <details key={title} className="group">

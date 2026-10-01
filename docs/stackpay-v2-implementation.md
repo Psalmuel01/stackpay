@@ -71,3 +71,27 @@ Do not call v2 production-ready until cryptographic identity, revocable keys, ve
 ## Milestone 2 progress — deployment foundation
 
 The [deployment registry design and rollout](stackpay-deployment-registry.md) records the first additive slice: an empty immutable registry migration, a read-only public evidence checker, and PostgreSQL/schema tests. Live deployment evidence is still unresolved. Runtime record bindings, deployment-scoped uniqueness, historical checkout/withdrawal routing, and durable Chainhook projection remain outstanding; this foundation does not close the milestone or its release gate.
+
+## Progress — 2026-09-30
+
+Milestones 0–7 are implemented on `v2/core-infrastructure`. Item-by-item status, including what is still open, is in [the issues list](stackpay-v2-issues.md).
+
+| Milestone | State |
+| --- | --- |
+| 0 — Audit and isolation | Done. The disposable-PostgreSQL harness (`npm run test:db`) and CI run every migration and SQL suite. |
+| 1 — Identity boundary | Done, including audience-bound sessions, revoke-all and throttling. |
+| 2 — Chain projection and deployment identity | Done: durable inbox, atomic projection, rollback and reapply, deployment binding and routing. Deployment-scoped uniqueness waits for a second registered pair. |
+| 3 — API contract and signing ADR | Done: `/api/v1`; [ADR 0001](adr/0001-settlement-model.md); draft invoices created on-chain by the customer through the merchant's Universal link. |
+| 4 — Keys, idempotency, state machine | Done. The `refunded` state exists because refunds are real on-chain transfers (P2-03). |
+| 5 — Merchant webhooks | Done. |
+| 6 — SDK and developer docs | Done: `packages/sdk`, `/docs#api` and `/docs#webhooks`. Not published to npm (needs a license and release approval). |
+| 7 — Reconciliation and operations | Done: CSV export, metrics, alerts, the [operations runbook](operations.md). A backup restore drill is for the operator. |
+| 8 — Contract decision and pilots | ADR done and `direct` prototyped. The [pilot runbook](pilot-runbook.md) is prepared. Needs people: an independent contract review, deploying `direct`, and 3–5 merchant pilots. |
+
+Also shipped after the core: Counter Mode (P2-01), MultiPay SKU metadata and return URLs (P2-02), and verified refunds (P2-03).
+
+**Release gate status.** Every engineering item in the gate is demonstrated by tests against a real PostgreSQL database and by simnet contract tests. Two items remain, and neither can be completed by code alone:
+- an independent security review of the contracts;
+- three successful real merchant flows.
+
+Until both are done, v2 is testnet-only.

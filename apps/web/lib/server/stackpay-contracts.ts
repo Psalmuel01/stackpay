@@ -40,7 +40,7 @@ function getNetwork() {
 
 export function buildCreateInvoiceIntent(input: {
   recipientAddress: string;
-  amount: number;
+  amount: number | string;
   currency: Currency;
   expiresInSeconds: number;
   description: string;
@@ -150,7 +150,7 @@ export function buildCreateUniversalQrIntent(input: {
 export function buildCreatePublicInvoiceFromLinkIntent(input: {
   onchainLinkId: string;
   currency: Currency;
-  amount: number;
+  amount: number | string;
   expiresInSeconds: number;
   description: string;
 }): ContractIntent {
@@ -171,7 +171,7 @@ export function buildCreatePublicInvoiceFromLinkIntent(input: {
 }
 
 export function buildWithdrawStxIntent(input: {
-  amount: number;
+  amount: number | string;
   recipientAddress: string;
 }): ContractIntent {
   return {
@@ -192,7 +192,7 @@ export function buildWithdrawStxIntent(input: {
 
 export function buildWithdrawTokenIntent(input: {
   currency: "sBTC" | "USDCx";
-  amount: number;
+  amount: number | string;
   tokenContract: string;
   recipientAddress: string;
 }): ContractIntent {

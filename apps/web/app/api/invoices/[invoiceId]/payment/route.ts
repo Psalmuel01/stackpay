@@ -6,7 +6,7 @@ import { apiFailure } from "@/lib/server/http";
 
 export async function POST(
   request: Request,
-  context: { params: { invoiceId: string } }
+  context: { params: Promise<{ invoiceId: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
@@ -18,9 +18,9 @@ export async function POST(
       return jsonError(400, "invalid_request", "txId is required.");
     }
 
-    const sync = await verifyInvoicePaymentTransaction(context.params.invoiceId, payload.txId);
+    const sync = await verifyInvoicePaymentTransaction((await context.params).invoiceId, payload.txId);
     logTransactionResponse("invoice.payment.sync", {
-      invoiceId: context.params.invoiceId,
+      invoiceId: (await context.params).invoiceId,
       txId: payload.txId,
       sync,
     });
@@ -47,11 +47,13 @@ export async function POST(
     }
 
     const invoice = await confirmInvoicePayment({
-      invoiceId: context.params.invoiceId,
+      invoiceId: (await context.params).invoiceId,
       txId: sync.txId,
       receiptId: sync.onchainId,
       payerWalletAddress: sync.senderAddress,
       confirmedAt: sync.confirmedAt,
+      blockHash: sync.blockHash,
+      blockHeight: sync.blockHeight,
     });
 
     const responsePayload = {

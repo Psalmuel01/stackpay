@@ -5,14 +5,14 @@ import { isSupabaseConfigured } from "@/lib/server/supabase-admin";
 
 export async function GET(
   _request: Request,
-  context: { params: { slug: string } }
+  context: { params: Promise<{ slug: string }> }
 ) {
   if (!isSupabaseConfigured()) {
     return jsonError(503, "supabase_not_configured", "Supabase environment variables are missing.");
   }
 
   try {
-    const paymentLink = await getPublicPaymentLinkBySlug(context.params.slug);
+    const paymentLink = await getPublicPaymentLinkBySlug((await context.params).slug);
     if (!paymentLink) {
       return jsonError(404, "not_found", "Payment link not found.");
     }
