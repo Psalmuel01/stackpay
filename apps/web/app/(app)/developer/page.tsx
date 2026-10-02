@@ -418,7 +418,7 @@ const invoice = await stackpay.invoices.create({
         <CodeBlock className="min-w-0" lang="bash" title="cURL" code={curl} />
       </div>
       <div className="border-t border-line px-5 py-4 text-sm text-muted sm:px-6">
-        Full reference in the <Link href="/docs#api" className="link">API documentation</Link>. This console is the <strong className="text-fg-2">{environment}</strong> environment.
+        Full reference in the <Link href="/docs/api" className="link">API documentation</Link>. This console is the <strong className="text-fg-2">{environment}</strong> environment.
       </div>
     </section>
   );

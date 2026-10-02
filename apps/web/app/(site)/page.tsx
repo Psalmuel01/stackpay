@@ -485,7 +485,7 @@ export default function HomePage() {
                 <Link href="/dashboard" className="btn btn-primary btn-lg w-full sm:w-auto">
                   Launch console <ArrowUpRight size={18} aria-hidden="true" />
                 </Link>
-                <Link href="/docs#quickstart" className="btn btn-secondary btn-lg w-full sm:w-auto">
+                <Link href="/docs/quickstart" className="btn btn-secondary btn-lg w-full sm:w-auto">
                   Read the guide <ArrowRight size={18} aria-hidden="true" />
                 </Link>
               </FadeIn>
@@ -621,7 +621,7 @@ export default function HomePage() {
                   inspect transaction references, and manage withdrawals from
                   one workspace.
                 </p>
-                <Link href="/docs#settlements" className="link mt-6 inline-flex items-center gap-2 text-base">
+                <Link href="/docs/settlements" className="link mt-6 inline-flex items-center gap-2 text-base">
                   How settlement works <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </div>

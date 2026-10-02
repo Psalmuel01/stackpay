@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 }
 ```
 
-The full API and webhook reference is at [stackpay.vercel.app/docs](https://stackpay.vercel.app/docs#api). The SDK reference is in [`packages/sdk`](packages/sdk).
+See the [API reference](https://stackpay.vercel.app/docs/api) and [webhooks guide](https://stackpay.vercel.app/docs/webhooks). The SDK reference is in [`packages/sdk`](packages/sdk).
 
 ## Architecture
 

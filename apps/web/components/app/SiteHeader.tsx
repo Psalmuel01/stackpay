@@ -26,8 +26,8 @@ export default function SiteHeader() {
           </Link>
           <Link
             href="/docs"
-            aria-current={pathname === "/docs" ? "page" : undefined}
-            className={`rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-subtle hover:text-fg ${pathname === "/docs" ? "text-fg" : "text-muted"}`}
+            aria-current={pathname.startsWith("/docs") ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-subtle hover:text-fg ${pathname.startsWith("/docs") ? "text-fg" : "text-muted"}`}
           >
             Docs
           </Link>

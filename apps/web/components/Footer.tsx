@@ -14,13 +14,13 @@ export default function Footer() {
             </p>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-fg-2">
-            <Link className="inline-flex min-h-10 items-center hover:text-fg" href="/docs#quickstart">
+            <Link className="inline-flex min-h-10 items-center hover:text-fg" href="/docs/quickstart">
               Get started
             </Link>
             <Link className="inline-flex min-h-10 items-center hover:text-fg" href="/docs">
               Documentation
             </Link>
-            <Link className="inline-flex min-h-10 items-center hover:text-fg" href="/docs#security">
+            <Link className="inline-flex min-h-10 items-center hover:text-fg" href="/docs/security">
               Security &amp; limits
             </Link>
             <a

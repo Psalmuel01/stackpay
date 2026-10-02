@@ -207,7 +207,7 @@ export default function MerchantAuthGate({
 
         <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line bg-subtle px-5 py-4 text-[14px]">
           <span className="text-muted">New to StackPay?</span>
-          <Link href="/docs#quickstart" className="link inline-flex items-center gap-1">
+          <Link href="/docs/quickstart" className="link inline-flex items-center gap-1">
             Read the getting started guide
             <ArrowRight size={14} aria-hidden="true" />
           </Link>
