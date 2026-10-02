@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BookOpen, LayoutDashboard } from "lucide-react";
 import StatusScreen from "@/components/StatusScreen";
 
-export const metadata: Metadata = { title: "Page not found — StackPay" };
+export const metadata: Metadata = { title: { absolute: "Page not found — StackPay" }, robots: { index: false } };
 
 export default function NotFound() {
   return (

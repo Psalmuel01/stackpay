@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree } from "next/font/google";
 import "./globals.css";
+import { OG_IMAGE, SITE, openGraph, siteUrl } from "@/lib/site";
 
 // Fallback for platforms without Avenir Next. Not preloaded: Apple devices
 // render Avenir Next and never need to download it.
@@ -12,9 +13,19 @@ const figtree = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: "StackPay — Bitcoin-native payments on Stacks",
-  description:
-    "StackPay is a Bitcoin-native payment gateway on Stacks for sBTC, STX, and USDCx. Create invoices, share payment links, and manage manual on-chain settlements.",
+  metadataBase: siteUrl(),
+  title: { default: SITE.title, template: "%s — StackPay" },
+  description: SITE.description,
+  applicationName: SITE.name,
+  keywords: SITE.keywords,
+  creator: "Samuel Dahunsi",
+  openGraph: openGraph(),
+  twitter: {
+    card: "summary_large_image",
+    title: SITE.title,
+    description: SITE.description,
+    images: [OG_IMAGE],
+  },
   icons: {
     icon: "/stackpay-icon.svg",
     shortcut: "/stackpay-icon.svg",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/Footer";
+import { SITE, openGraph, siteUrl } from "@/lib/site";
 import Logo from "@/components/Logo";
 import TokenLogo from "@/components/TokenLogo";
 import { FadeIn, StaggerContainer, StaggerItem, HoverCard } from "@/components/Motion";
@@ -23,6 +24,8 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: openGraph({ url: "/" }),
   other: {
     "talentapp:project_verification":
       "74a5f6a08077644b438f3b69602b062aca292d19aafd2b996a5a971a52c8bc48fed8c1ccac74931dd7d03108c6d030baf093574b8cc2c0b08e641e37dbee4ce3",
@@ -410,9 +413,46 @@ const verification = [
    Page
    -------------------------------------------------------------------------- */
 
+/** Structured data so search engines understand what StackPay is and who publishes it. */
+function StructuredData() {
+  const base = siteUrl().origin;
+  const data = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${base}/#organization`,
+        name: SITE.name,
+        url: base,
+        logo: `${base}/stackpay-icon.svg`,
+        sameAs: [SITE.github, SITE.npm, SITE.demo],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${base}/#website`,
+        name: SITE.name,
+        url: base,
+        publisher: { "@id": `${base}/#organization` },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: SITE.name,
+        url: base,
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Web",
+        description: SITE.description,
+        publisher: { "@id": `${base}/#organization` },
+        sameAs: [SITE.github, SITE.npm],
+      },
+    ],
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;
+}
+
 export default function HomePage() {
   return (
     <>
+      <StructuredData />
       <main id="main-content" className="overflow-x-clip">
         {/* Hero ------------------------------------------------------------ */}
         <section className="relative pb-16 sm:pb-24">
