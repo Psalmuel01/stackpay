@@ -9,8 +9,6 @@ StackPay lets businesses accept **sBTC**, **STX**, and **USDCx** through hosted 
 [![CI](https://img.shields.io/github/actions/workflow/status/Psalmuel01/stackpay/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Psalmuel01/stackpay/actions/workflows/ci.yml)
 ![Network](https://img.shields.io/badge/network-Stacks%20testnet-5546FF?style=for-the-badge)
 
-**Live app:** [stackpay.vercel.app](https://stackpay.vercel.app) · **Demo:** [youtu.be/dcz9mq1vNf4](https://youtu.be/dcz9mq1vNf4)
-
 ## Demo
 
 [![StackPay — Stripe for Bitcoin (watch on YouTube)](docs/assets/demo-thumbnail.jpg)](https://youtu.be/dcz9mq1vNf4)

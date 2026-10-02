@@ -7,7 +7,8 @@ export const SITE = {
   name: "StackPay",
   title: "StackPay — Bitcoin payments for developers and merchants",
   description:
-    "Accept sBTC, STX and USDCx with hosted checkout, payment links, QR codes and a developer-first API with signed webhooks. Payments settle on Stacks, secured by Bitcoin.",
+    // Keep under ~125 characters: Google truncates around 155, social previews around 125.
+    "Accept sBTC, STX and USDCx with hosted checkout, payment links and a developer API. Settles on Stacks, secured by Bitcoin.",
   keywords: [
     "sBTC payments", "accept sBTC", "Bitcoin payment gateway", "Bitcoin payment API", "Stacks payments",
     "STX payments", "USDCx", "crypto checkout", "Bitcoin invoices", "Bitcoin webhooks", "Stripe for Bitcoin",
