@@ -26,6 +26,11 @@ export const metadata: Metadata = {
     description: SITE.description,
     images: [OG_IMAGE],
   },
+  // Search engine ownership checks (Google Search Console, Bing Webmaster Tools), set per deployment.
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : undefined,
+  },
   icons: {
     icon: "/stackpay-icon.svg",
     shortcut: "/stackpay-icon.svg",
