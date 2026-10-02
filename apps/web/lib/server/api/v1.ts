@@ -71,7 +71,7 @@ export function generateApiKey(environment: ApiEnvironment) {
   return { secret, prefix: secret.slice(0, 12), hash: hashApiKey(secret) };
 }
 
-function publicOrigin(request: Request) {
+export function publicOrigin(request: Request) {
   const configured = process.env.STACKPAY_APP_ORIGIN ?? process.env.NEXT_PUBLIC_APP_URL;
   try {
     return new URL(configured || request.url).origin;

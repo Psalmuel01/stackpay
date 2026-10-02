@@ -421,10 +421,13 @@ export default function DocsPage() {
               />
               <p>
                 <strong className="font-semibold text-fg">Counter Mode</strong>{" "}
-                turns a tablet or spare screen into a till: key in the amount,
-                show a QR prefilled with it, and hear a chime when the payment
-                confirms. Open it from Universal QR. Hand over goods only after
-                the payment shows as confirmed in the feed.
+                turns a tablet or spare screen into a till. Key in the amount and
+                press Charge: each sale gets its own QR for exactly that amount,
+                which the customer can’t change, and the screen turns to Paid
+                with an optional chime when that sale confirms. The customer
+                approves twice (create, then pay), and an unpaid sale expires
+                after 15 minutes. Open it from Universal QR, and hand over goods
+                only when the screen says Paid.
               </p>
             </Section>
             <Section id="refunds">

@@ -72,7 +72,7 @@ GitHub-style backlog, stored locally; no GitHub issues created. Every checkbox i
 
 - [x] **P2-01: Counter Mode and QR acceptance.** Problem: physical checkout lacks dedicated large-screen operational flow. Impact: missed opportunity for cafés/events. Fix: mobile/large-screen counter mode, presets, branded persistent QR, recent confirmed payments, accessible optional sound. Files: QR/checkout UI, notifications, profile schema. Tests: wallet reconnect, duplicate sound/event, offline recovery, amount/asset validation, confirmation before fulfillment.
 
-  **Status (2026-09-30):** Done: Counter Mode with keypad, prefilled QR, a confirmed-payment feed, an optional chime and full screen.
+  **Status (2026-09-30):** Done: Counter Mode with a keypad, a fixed-amount invoice and QR per sale (the customer cannot change the amount; the contract only accepts exactly that payment), a paid/expired state per sale, a recent-payments feed, an optional chime and full screen.
 
 - [x] **P2-02: MultiPay commerce options.** Problem: limited SKU/quantity/usage/expiry/redirect support. Impact: integration friction for repeated purchases. Fix: bounded metadata/SKU first; implement other options only with contract-enforced semantics and explicit URL rules. Files: link schema, v1/link service, Clarity if required, SDK/docs. Tests: max-use concurrency, quantity precision, expiry, redirect allowlist, one independent invoice per purchase.
 
